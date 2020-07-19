@@ -20,38 +20,29 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
-module emu
+module DE2_115_Genesis
 (
 	//Master input clock
-	input         CLK_50M,
+	input         CLOCK_50,
 
-	//Async reset from top-level module.
-	//Can be used as initial reset.
-	input         RESET,
+	// switch inputs
+	// SW[0] - RESET
+	// SW[17] - joystick_0_A, SW[16] - joystick_0_B, SW[15] - joystick_0_C, SW[14] - joystick_0_START
+   input  [17:0] SW, // Toggle Switch[17:0]
 
-	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
-
-	//Base video clock. Usually equals to CLK_SYS.
-	output        CLK_VIDEO,
-
-	//Multiple resolutions are supported using different CE_PIXEL rates.
-	//Must be based on CLK_VIDEO
-	output        CE_PIXEL,
-
-	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] VIDEO_ARX,
-	output  [7:0] VIDEO_ARY,
-
+	// button inputs
+	// KEY[0]  - joystick_0_Right, KEY[3] - joystick_0_Left, KEY[2] - joystick_0_Up, KEY[1] - joystick_0_Down
+	input   [3:0] KEY,
+	
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
 	output  [7:0] VGA_B,
 	output        VGA_HS,
 	output        VGA_VS,
-	output        VGA_DE,    // = ~(VBlank | HBlank)
-	output        VGA_F1,
-	output [1:0]  VGA_SL,
-
+	output        VGA_CLK,
+	output        VGA_BLANK,
+	output        VGA_SYNC,
+	
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
 	// b[1]: 0 - LED status is system status OR'd with b[0]
@@ -59,11 +50,6 @@ module emu
 	// hint: supply 2'b00 to let the system control the LED.
 	output  [1:0] LED_POWER,
 	output  [1:0] LED_DISK,
-
-	// I/O board button press simulation (active high)
-	// b[1]: user button
-	// b[0]: osd button
-	output  [1:0] BUTTONS,
 
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
@@ -124,9 +110,15 @@ module emu
 	input         OSD_STATUS
 );
 
+//A global reset signal (active HIGHT)
+assign RESET = SW[0];
+
 assign ADC_BUS  = 'Z;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
-assign BUTTONS   = osd_btn;
+
+//BUTTONS old output DE2_115_genesis module for MiSTer top module
+//assign BUTTONS   = osd_btn;
+
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 always_comb begin
@@ -228,91 +220,160 @@ localparam CONF_STR = {
 	"V,v",`BUILD_DATE
 };
 
+//exHPS bidirectional signals
+wire [21:0] gamma_bus;
+
+//exHPS OUTPUTS
 wire [63:0] status;
-wire  [1:0] buttons;
 wire [11:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
+
 wire        ioctl_download;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [15:0] ioctl_data;
 wire  [7:0] ioctl_index;
-reg         ioctl_wait;
 
-reg  [31:0] sd_lba;
-reg         sd_rd = 0;
-reg         sd_wr = 0;
 wire        sd_ack;
 wire  [7:0] sd_buff_addr;
 wire [15:0] sd_buff_dout;
-wire [15:0] sd_buff_din;
 wire        sd_buff_wr;
 wire        img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 
-wire        forced_scandoubler;
+//wire        forced_scandoubler;
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
 
-wire [21:0] gamma_bus;
 wire [15:0] sdram_sz;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(1)) hps_io
-(
-	.clk_sys(clk_sys),
-	.HPS_BUS(HPS_BUS),
+//exHPS inputs
+//sd_lba is 32-bit a SD-card address part. It is used as BRAM address part in "system" module
+wire [31:0] sd_lba;
+//ioctl_wait is a HPS bus status signal
+wire ioctl_wait;
+//sd_rd and sd_wr VDNUM-1 bit signal (VD is Virtual Drive count). It is used for a SD-card selection for read or write
+//for Genesis core VDNUM == 1
+wire sd_rd, sd_wr;
 
-	.conf_str(CONF_STR),
+//exHSP, i/o bus
+//GAMMA parameter in video_mixer module is 0, that's why gamma_coor module isn't uses
+//gamma_bus[21] is an output of video_mixer module, it's 1 if the GAMMA parameter equals 1
+//gamma_bus[20:0] = HPSmodule_out{clk_sys, gamma_en, gamma_wr, gamma_wr_addr, gamma_value};
+//gamma_bus[20] (clk_sys) is clock source for gamma_corr module
+assign gamma_bus[20] = clk_sys;
+//gamma_bus[19] (gamma_en) video_mixer/gamma_corr enable a gamma correction if 1
+assign gamma_bus[19] = 1'b0;
+//gamma_bus[18] (gamma_wr) video_mixer/gamma_corr enable write a new gamma value if 1
+assign gamma_bus[18] = 1'b0;
+//gamma_bus[17:8] (gamma_wr_addr) video_mixer/gamma_corr is a component address of gamma_curve (r if gamma_bus[17:16] == 2'b00,g if gamma_bus[17:16] == 2'b01 or b if gamma_bus[17:16] == 2'b10)
+//don't care because the GAMMA parameter is low
+assign gamma_bus[17:8] = '0;
+//gamma_bus[7:0] (gamma_value) video_mixer/gamma_corr is data source for gamma_curve or gamma_curve rgb
+assign gamma_bus[7:0] = '0;
 
-	.joystick_0(joystick_0),
-	.joystick_1(joystick_1),
-	.joystick_2(joystick_2),
-	.joystick_3(joystick_3),
-	.joystick_4(joystick_4),
-	.joystick_analog_0({joy0_y, joy0_x}),
-	.joystick_analog_1({joy1_y, joy1_x}),
+//exHSP, status is a 64-bit parameter
+//status[0] is reset (active HIGH)
+//status[3:1] video_mixer, scandoubler: 3'b100 enable CRT 75%, 3'b011 enable CRT 50%, 3'b010 enable CRT 25%. 3'b001 enable hq2x scale. 3'b000 - disable scandoubler
+//status[4] system, joystick_1 and joystick_0 swap. 0 - swap disabled. Also set SER_OPT system/gen_io parameter: use SERJOYSTICK on port 1 if status[4]==1'b1, or port 2 if status[4]==1'b0
+//status[5] system, J3BUT set a 3 buttons controller mode (active LOW)
+//status[7:6] system/multitap/gen_io EXPORT parameter: maybe 2'b00 - Japan, 2'b01 - USA, 2b'10 - Europe. status[7]=1 system, Genesis PAL mode (VDP, multitap)
+//status[9:8]=2'b10 auto region disabled (DE2_115_Genesis). Can be IGNORED. 2'b00 region by file extention, 2'b01 region by ROM header. Set status_in[7:6] HSP parameter by region_req[1:0]
+//status[10]=1 then VIDEO_ARX x VIDEO_ARY = 16x9
+//status[11]=0 jt12, YM2612 ladder (active LOW)
+//status[13] DE2_115_Genesis, sav_pending status at cart BRAM SAVE/LOAD. Used by HSP. Can be IGNORED
+//status[15:14] rtl/genesis_lpf, FM low pass filter 2'b00 SMD Model 1, 2'b01 SMD Model 2, 2'b10 - 8.5khz (minimal) filter
+//status[16] DE2_115_genesis, bk_load status at cart BRAM SAVE/LOAD. Used by HSP. Can be IGNORED
+//status[17] DE2_115_genesis, bk_save status at cart BRAM SAVE/LOAD. Used by HSP. Can be IGNORED
+//status[20:18] system/multitap/gem_io, MOUSE_OPT - mouse mode. MOUSE_OPT[0]=1 mouse connected to port1. MOUSE_OPT[1]=1 mouse connected to port2. MOUSE_OPT[2]=1 mouse Y inverted (?). MOUSE_OPT=3'b000 mouse disabled
+//status[23]=1  system, high to enable PCM interpolation on YM2612 mode
+//status[24]=0 system/cheatcodes, enable Game Geniue (system GG_EN). 1 - disable
+//status[26:25] system, turbo mode M68K and VDP (status[26:25]==2'b11 VRAM full speed (max turbo), 2'b01 medium turbo, 2'b00 no turbo)
+//status[28:27] DE2_115_Genesis, Can be IGNORED. Region priority: 2'b00 - US>EU>JP, 2'b01 - EU>US>JP, 2'b10 - US>JP>EU, 2'b11 - JP>US>EU. Set status_in[7:6] HSP parameter by region_req[1:0]
+//status[29]=1 system, enabled VDP border
+//status[30]=1 then VIDEO_ARX x VIDEO_ARY = 10x7 at 320x224 mode, or VIDEO_ARX x VIDEO_ARY = 4x3 at 320x240 mode. 320x224 aspect: 1 - corrected, 0 - original
+//status[31]=1 vdp OBJ_LIMIT_HIGH - enable more sprites and pixels per line. 0 - enable sprite limit like MD
+//status[32]=0 ENABLE_FM (active LOW)
+//status[33]=0 ENABLE_PSG (active LOW)
+//status[36:35] DE2_115_Genesis/system, use_sdr. 2'b00 - use_sdr==|sdram_sz[2:0], where sdram_sz[1:0] is SDRAM size: 0 - none, 1 - 32MB, 2 - 64MB, 3 - 128MB (taken from  hps_io). If status[36:35] non zero - use_sdr==status[35]
+//status[39:37] system, MULTITAP type: 3'b001 - 4-way, 3b'010 - controller 2 is controller 2, mode or 3b'011 - controller 2 is controller 5. 3b'100 - J-cart. 3b'000 - multitap disabled
+//status[41:40] gun_mode, if 2'b00 in gen_io then GUN disabled. lightgun, MOUSE_XY and JOY_X, JOY_Y, JOY: if 2'b11 then use mouse, 2'b01 use joypad at joystick_0, stick 0; 2'b10 or 2'b00 use joypad at joystick_1, stick 1
+//status[42] lightgun, gun_btn_mode. Use mouse buttons if status[42]==1, else use joypad buttons
+//status[44:43] video_mixer 2'b00 draw lightgun cross. lightgun - cross size 8'd1 at 0, cross size 8'd3 at 1. cross size 8'd0 at 2 and 3
+//status[45]=1 DE2_115_Genesis, MISTer SERJOYSTICK enabled (GPIO)
+//status[46]=1 cofi_enable, active HIGH
+//status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
+//status[63:48] loopback to HPS_BUS. Ignore {status[63:48], status[34], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
+//                 63               47                         31                         15                        0
+assign status = 64'b0000000000000000_0_0_11_1_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_000_0;
 
-	.buttons(buttons),
-	.forced_scandoubler(forced_scandoubler),
-	.new_vmode(new_vmode),
+//exHSP, joystick bitmap (used only 11 bit from 32)
+//0      7 8      15       23       31
+//RLDUABCS MXYZxxxx xxxxxxxx xxxxxxxx
+assign joystick_0 = {KEY[0],KEY[3],KEY[2],KEY[1], SW[17],SW[16],SW[15], SW[14], 4'b0, 20'b00000000000000000000};
+assign joystick_1 = '0;
+assign joystick_2 = '0;
+assign joystick_3 = '0;
+assign joystick_4 = '0;
 
-	.status(status),
-	.status_in({status[63:8],region_req,status[5:0]}),
-	.status_set(region_set),
-	.status_menumask({!gun_mode,~dbg_menu,~status[8],~gg_available,~bk_ena}),
+//exHSP, joystick_analog (8 bit) for lightgun - not used
+assign joy0_y = '0;
+assign joy0_x = '0;
+assign joy1_y = '0;
+assign joy1_x = '0;
 
-	.ioctl_download(ioctl_download),
-	.ioctl_index(ioctl_index),
-	.ioctl_wr(ioctl_wr),
-	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_data),
-	.ioctl_wait(ioctl_wait),
+//exHSP signal indicating an active cart/GG download (1 bit). No system reset and hard_reset when it's LOW
+assign ioctl_download = '0;
+//exHPS signal, menu index used to upload the file (8 bit). If it's LOW, then cart_download will be HIGH when ioctl_download is HIGH
+assign ioctl_index = '0;
+//exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
+assign ioctl_wr = '1;
+//exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
+//ioctl_addr[24:1] used by sdram module as write address for sdram port0
+//ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
+assign ioctl_addr = 26'b00000000000000000000001111;
+//exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
+//May be zero, but I set it to "J" region for future, when ROM loading will work
+assign ioctl_data = "JJ";
 
-	.sd_lba(sd_lba),
-	.sd_rd(sd_rd),
-	.sd_wr(sd_wr),
-	.sd_ack(sd_ack),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
-	.sd_buff_wr(sd_buff_wr),
-	.img_mounted(img_mounted),
-	.img_readonly(img_readonly),
-	.img_size(img_size),
+//exHPS signals with "sd" prefix was used for passthrough SD-card from HPS to FPGA
+//SD-card keep BRAM backup file
+//sd_ack enables cart BRAM save to (loading from) SD cart
+assign sd_ack = '0;
+//sd_buff_addr (8 bit) part of SD-card address bus, not used
+assign sd_buff_addr = '0;
+//sd_buff_dout (16 bit), the system module, BRAM data input bus. Not used
+assign sd_buff_dout = '0;
+//sd_buff_wr signal allow system/BRAM_WE if HIGH together with sd_ack
+assign sd_buff_wr = '0;
 
-	.gamma_bus(gamma_bus),
-	.sdram_sz(sdram_sz),
+//Also using for BRAM save/load, not used
+//img_mounted signaling that new image has been mounted
+assign img_mounted = '1;
+//img_readonly signaling that image was mounted as read only. Is HIGH if cart hasn't BRAM. Valid only for active bit in img_mounted
+assign img_readonly = '1;
+//img_size - size of image in bytes (64 bit). Valid only for active bit in img_mounted. If non zero and BRAM enabled, then backup file is reading from SD-card after ROM loading
+assign img_size = '0;
 
-	.ps2_key(ps2_key),
-	.ps2_mouse(ps2_mouse)
-);
+//exHPS sdram_sz bus (16 bit, used 3). Enable use SDRAM if non zero. hps_io defines next SDRAM sizes: 0 - none, 1 - 32MB, 2 - 64MB, 3 - 128MB.
+assign sdram_sz = 16'b0000000000000010;
+
+//exHPS ps2_key (10-bit) - PS/2 keyboard signal. Not used
+//new data - ps2_key[10], key pressed - ps2_key[9], key code - ps2_key[8:0]
+assign ps2_key = '0;
+
+//exHPS ps2_mouse (24-bit) - PS/2 mouse signal. Not used
+//It's input for system/multitap/gen_io and lightgun modules
+//Cursor X coordinate - {{3{ps2_mouse[4]}},ps2_mouse[15:8]}, Y coordinate - {{3{ps2_mouse[5]}},ps2_mouse[23:16]}, new data - ps2_mouse[24], buttons - ps2_mouse[2:0]
+assign ps2_mouse = '0;
 
 wire [1:0] gun_mode = status[41:40];
 wire       gun_btn_mode = status[42];
 
 wire code_index = &ioctl_index;
 wire cart_download = ioctl_download & ~code_index;
+//GameGenue code loading
 wire code_download = ioctl_download & code_index;
 
 reg osd_btn = 0;
@@ -385,7 +446,7 @@ wire hblank, vblank;
 wire interlace;
 wire [1:0] resolution;
 
-wire reset = RESET | status[0] | buttons[1] | region_set | bk_loading;
+wire reset = RESET | status[0] | region_set | bk_loading;
 
 wire [7:0] color_lut[16] = '{
 	8'd0,   8'd27,  8'd49,  8'd71,
@@ -394,6 +455,7 @@ wire [7:0] color_lut[16] = '{
 	8'd206, 8'd228, 8'd255, 8'd255
 };
 
+//***********************************fpgagen top module***********************************
 system system
 (
 	.RESET_N(~reset),
@@ -470,15 +532,17 @@ system system
 	.BRAM_DO(sd_buff_din),
 	.BRAM_WE(sd_buff_wr & sd_ack),
 	.BRAM_CHANGE(bk_change),
-
 	.ROMSZ(rom_sz[24:1]),
 	.ROM_ADDR(rom_addr),
-	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
+//	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
+//Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system / SVP module
+	.ROM_DATA(sdrom_data),
 	.ROM_WDATA(rom_wdata),
 	.ROM_WE(rom_we),
 	.ROM_BE(rom_be),
 	.ROM_REQ(rom_req),
-	.ROM_ACK(use_sdr ? sdrom_rdack : ddrom_rdack),
+//	.ROM_ACK(use_sdr ? sdrom_rdack : ddrom_rdack),
+	.ROM_ACK(sdrom_rdack),
 
 	.ROM_ADDR2(rom_addr2),
 	.ROM_DATA2(rom_data2),
@@ -542,13 +606,15 @@ wire [2:0] scale = status[3:1];
 wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
 
 assign CLK_VIDEO = clk_ram;
-assign VGA_SL = {~interlace,~interlace}&sl[1:0];
+assign VGA_CLK = CLK_VIDEO; 
+//assign VGA_SL = {~interlace,~interlace}&sl[1:0];
 
 reg old_ce_pix;
 always @(posedge CLK_VIDEO) old_ce_pix <= ce_pix;
 
 wire [7:0] red, green, blue;
 
+//***********************************Composite-like horizontal blending***********************************
 cofi coffee (
 	.clk(clk_sys),
 	.pix_ce(ce_pix),
@@ -573,16 +639,29 @@ cofi coffee (
 
 wire hs_c,vs_c,hblank_c,vblank_c;
 
+//Disable Blank and sync at VGA out.
+assign VGA_BLANK = 1'b1; // (VGA_HS && VGA_VS);
+assign VGA_SYNC = 0;
+
+//***********************************gamma, scandoubler, scanlines***********************************
 video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
-	.*,
-
+	//VGA outputs
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_VS(VGA_VS),
+	.VGA_HS(VGA_HS),
+	.VGA_DE(VGA_DE),
+	
+	.gamma_bus(gamma_bus),
+	
 	.clk_vid(CLK_VIDEO),
 	.ce_pix(~old_ce_pix & ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
 	.scanlines(0),
-	.scandoubler(~interlace && (scale || forced_scandoubler)),
+	.scandoubler(~interlace && scale),
 	.hq2x(scale==1),
 
 	.mono(0),
@@ -605,6 +684,7 @@ wire       lg_b;
 wire       lg_c;
 wire       lg_start;
 
+//***********************************lightgun emulation by mouse or joypad***********************************
 lightgun lightgun
 (
 	.CLK(clk_sys),
@@ -637,6 +717,7 @@ lightgun lightgun
 );
 
 ///////////////////////////////////////////////////
+//***********************************sdram module***********************************
 sdram sdram
 (
 	.*,
@@ -669,10 +750,11 @@ sdram sdram
 );
 
 wire [24:1] rom_addr, rom_addr2;
-wire [15:0] sdrom_data, ddrom_data, rom_data2, rom_wdata;
+wire [15:0] sdrom_data, rom_data2, rom_wdata;
 wire  [1:0] rom_be;
-wire rom_req, sdrom_rdack, ddrom_rdack, rom_rd2, rom_rdack2, rom_we;
+wire rom_req, sdrom_rdack, rom_we;
 
+//***************************DE2-115 doesn't have DDR RAM. Delete Module?***********************************************
 assign DDRAM_CLK = clk_ram;
 ddram ddram
 (
@@ -702,13 +784,17 @@ always @(posedge clk_sys) use_sdr <= (!status[36:35]) ? |sdram_sz[2:0] : status[
 reg  rom_wr = 0;
 wire sdrom_wrack, ddrom_wrack;
 reg [24:0] rom_sz;
+//sytem module, ROM size
+assign rom_sz = 24'b000010000000000000000000;
+
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 	old_download <= cart_download;
 	old_reset <= reset;
 
 	if(~old_reset && reset) ioctl_wait <= 0;
-	if (old_download & ~cart_download) rom_sz <= ioctl_addr[24:0];
+//Disabled while loading is not work
+//	if (old_download & ~cart_download) rom_sz <= ioctl_addr[24:0];
 
 	if (cart_download & ioctl_wr) begin
 		ioctl_wait <= 1;
@@ -779,8 +865,9 @@ always @(posedge clk_sys) begin
 	if(~old_download && cart_download) {hdr_j,hdr_u,hdr_e} <= 0;
 	if(old_download && ~cart_download) cart_hdr_ready <= 0;
 
-	if(ioctl_wr & cart_download) begin
+	if(ioctl_wr & cart_download) begin	
 		if(ioctl_addr == 'h1F0 || ioctl_addr == 'h1F2) begin
+//Really need to compare ioctl_addr == 'h1F0 there^?
 			if(ioctl_data[7:0] == "J") hdr_j <= 1;
 			else if(ioctl_data[7:0] == "U") hdr_u <= 1;
 			else if(ioctl_data[7:0] >= "0" && ioctl_data[7:0] <= "Z") hdr_e <= 1;
