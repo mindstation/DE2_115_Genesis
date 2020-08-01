@@ -111,7 +111,7 @@ module DE2_115_Genesis
 );
 
 //A global reset signal (active HIGHT)
-assign RESET = SW[0];
+wire RESET = SW[0];
 
 assign ADC_BUS  = 'Z;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
@@ -121,6 +121,7 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
+wire [7:0] VIDEO_ARX, VIDEO_ARY;
 always_comb begin
 	if (status[10]) begin
 		VIDEO_ARX = 8'd16;
@@ -400,10 +401,10 @@ wire clk_sys, clk_ram, locked;
 
 pll pll
 (
-	.refclk(CLK_50M),
-	.rst(0),
-	.outclk_0(clk_sys),
-	.outclk_1(clk_ram),
+	.inclk0(CLOCK_50),
+	.areset(0),
+	.c0(clk_sys),
+	.c1(clk_ram),
 	.locked(locked)
 );
 
@@ -484,7 +485,8 @@ system system
 	.VBL(vblank),
 	.BORDER(status[29]),
 	.CE_PIX(ce_pix),
-	.FIELD(VGA_F1),
+//input for HPS. Not used.
+//	.FIELD(VGA_F1),
 	.INTERLACE(interlace),
 	.RESOLUTION(resolution),
 	.FAST_FIFO(fifo_quirk),
@@ -529,7 +531,8 @@ system system
 
 	.BRAM_A({sd_lba[6:0],sd_buff_addr}),
 	.BRAM_DI(sd_buff_dout),
-	.BRAM_DO(sd_buff_din),
+//input for HPS. Not used.
+//	.BRAM_DO(sd_buff_din),
 	.BRAM_WE(sd_buff_wr & sd_ack),
 	.BRAM_CHANGE(bk_change),
 	.ROMSZ(rom_sz[24:1]),
@@ -604,8 +607,8 @@ end
 
 wire [2:0] scale = status[3:1];
 wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+wire CLK_VIDEO = clk_ram;
 
-assign CLK_VIDEO = clk_ram;
 assign VGA_CLK = CLK_VIDEO; 
 //assign VGA_SL = {~interlace,~interlace}&sl[1:0];
 
@@ -644,6 +647,8 @@ assign VGA_BLANK = 1'b1; // (VGA_HS && VGA_VS);
 assign VGA_SYNC = 0;
 
 //***********************************gamma, scandoubler, scanlines***********************************
+wire VGA_DE, CE_PIXEL;
+
 video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
 	//VGA outputs
@@ -755,22 +760,25 @@ wire  [1:0] rom_be;
 wire rom_req, sdrom_rdack, rom_we;
 
 //***************************DE2-115 doesn't have DDR RAM. Delete Module?***********************************************
+wire rom_rd2, rom_rdack2;
 assign DDRAM_CLK = clk_ram;
 ddram ddram
 (
-	.*,
+//	.*,
 	.wraddr(ioctl_addr[24:1]),
 	.din({ioctl_data[7:0],ioctl_data[15:8]}),
 	.we_req(rom_wr),
 	.we_ack(ddrom_wrack),
 
 	.rdaddr(rom_addr),
-	.dout(ddrom_data),
+//system module input signal: ROM source
+//	.dout(ddrom_data),
 	.rom_din(rom_wdata),
 	.rom_be(rom_be),
 	.rom_we(rom_we),
 	.rom_req(rom_req),
-	.rom_ack(ddrom_rdack),
+//system module input signal: ROM_ACK
+//	.rom_ack(ddrom_rdack),
 
 	.rdaddr2(rom_addr2),
 	.dout2(rom_data2),

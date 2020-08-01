@@ -675,6 +675,8 @@ STM95XXX pier_eeprom
 //-----------------------------------------------------------------------
 // SVP
 //-----------------------------------------------------------------------
+
+//DISABLED. SVP module uses MLAB blocks Cyclone V. There isn't MLAB blocks in Cyclone IV E.
 reg         SVP_SEL;
 wire [15:0] SVP_DO;
 wire        SVP_DTACK_N;
@@ -686,7 +688,7 @@ wire [15:0] SVP_DRAM_DI = BRAM_DO;
 
 reg SVP_CLKEN;
 always @(posedge MCLK) SVP_CLKEN <= ~reset & ~SVP_CLKEN;
-
+/*
 SVP svp
 (
 	.CLK(MCLK),
@@ -712,7 +714,7 @@ SVP svp
 	.DRAM_DO(SVP_DRAM_DO),
 	.DRAM_WE(SVP_DRAM_WE)
 );
-
+*/
 
 //-----------------------------------------------------------------------
 // 68K RAM
