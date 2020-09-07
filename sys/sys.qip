@@ -3,4 +3,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) h
 set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) scandoubler.v ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) gamma_corr.sv ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video_mixer.sv ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) audio_out.v ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) sigma_delta_dac.v ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) spdif.v ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) i2s.v ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sysmem.sv ]

@@ -43,23 +43,19 @@ module DE2_115_Genesis
 	output        VGA_BLANK,
 	output        VGA_SYNC,
 	
-	output        LED_USER,  // 1 - ON, 0 - OFF.
+	output [17:0] LEDR,
+	output  [8:0] LEDG,	
 
-	// b[1]: 0 - LED status is system status OR'd with b[0]
-	//       1 - LED status is controled solely by b[0]
-	// hint: supply 2'b00 to let the system control the LED.
-	output  [1:0] LED_POWER,
-	output  [1:0] LED_DISK,
-
-	output [15:0] AUDIO_L,
-	output [15:0] AUDIO_R,
-	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
-	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-
-	//ADC
-	inout   [3:0] ADC_BUS,
-
-	//SD-SPI
+	// I2C for Audio codec configuration
+	output        I2C_SCLK,
+	inout         I2C_SDAT,
+	// I2S for Audio codec bit stream
+	inout         AUD_BCLK,
+	output        AUD_DACDAT,
+	inout         AUD_DACLRCK,
+	output        AUD_XCK,
+	
+	//SD-SPI - not used (SD_SCK, SD_MOSI, SD_CS are set to Z state)
 	output        SD_SCK,
 	output        SD_MOSI,
 	input         SD_MISO,
@@ -113,7 +109,6 @@ module DE2_115_Genesis
 //A global reset signal (active HIGHT)
 wire RESET = SW[0];
 
-assign ADC_BUS  = 'Z;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 
 //BUTTONS old output DE2_115_genesis module for MiSTer top module
@@ -154,13 +149,19 @@ end
 //assign VIDEO_ARX = status[10] ? 8'd16 : ((status[30] && wide_ar) ? 8'd10 : 8'd64);
 //assign VIDEO_ARY = status[10] ? 8'd9  : ((status[30] && wide_ar) ? 8'd7  : 8'd49);
 
-assign AUDIO_S = 1;
-assign AUDIO_MIX = 0;
+// b[1]: 0 - LED status is system status OR'd with b[0]
+	//       1 - LED status is controled solely by b[0]
+	// hint: supply 2'b00 to let the system control the LED.
+wire  [1:0] led_power, led_disk;
+wire        led_user;
 
-assign LED_DISK  = 0;
-assign LED_POWER = 0;
-assign LED_USER  = cart_download | sav_pending;
+assign led_disk  = 0;
+assign led_power = 0;
+assign led_user  = cart_download | sav_pending;
 
+assign LEDR[0] = led_disk[1] ? led_disk[0] : 1'b0;
+assign LEDR[1] = led_power[1] ? led_power[0] : 1'b0;
+assign LEDG[0] = led_user;
 
 // Status Bit Map:
 //             Upper                             Lower              
@@ -333,7 +334,7 @@ assign ioctl_wr = '1;
 //exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
 //ioctl_addr[24:1] used by sdram module as write address for sdram port0
 //ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
-assign ioctl_addr = 26'b00000000000000000000001111;
+assign ioctl_addr = 25'b0000000000000000000001111;
 //exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
 //May be zero, but I set it to "J" region for future, when ROM loading will work
 assign ioctl_data = "JJ";
@@ -405,6 +406,7 @@ pll pll
 	.areset(0),
 	.c0(clk_sys),
 	.c1(clk_ram),
+	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
 	.locked(locked)
 );
 
@@ -471,8 +473,8 @@ system system
 	.PIER_QUIRK(pier_quirk),
 	.FMBUSY_QUIRK(fmbusy_quirk),
 
-	.DAC_LDATA(AUDIO_L),
-	.DAC_RDATA(AUDIO_R),
+	.DAC_LDATA(audio_ls),
+	.DAC_RDATA(audio_rs),
 	
 	.TURBO(status[26:25]),
 
@@ -1064,6 +1066,119 @@ always @(posedge clk_sys) begin
 		SER_OPT  <= 0;
 		USER_OUT <= '1;
 	end
+end
+
+//********************************Audio**************************************
+// Codec DE2-115 configuration by I2C
+I2C_AV_Config  i2c_con
+(
+//      Host Side
+.iCLK(clk_sys),
+.iRST_N(reset),
+//      I2C Side
+.oI2C_SCLK(I2C_SCLK),
+.oI2C_SDAT(I2C_SDAT)
+);
+
+// Digital audio mixing
+wire        clk_audio = clk_sys;
+wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
+wire [1:0]  audio_mix = 0; // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
+wire        audio_s = 1;
+wire [15:0] audio_ls, audio_rs;
+wire [15:0] alsa_l = 0, alsa_r = 0;
+
+wire [15:0] audio_l, audio_l_pre;
+aud_mix_top audmix_l
+(
+	.clk(clk_audio),
+	.att(vol_att),
+	.mix(audio_mix),
+	.is_signed(audio_s),
+
+	.core_audio(audio_ls),
+	.pre_in(audio_r_pre),
+	.linux_audio(alsa_l),
+
+	.pre_out(audio_l_pre),
+	.out(audio_l)
+);
+
+wire [15:0] audio_r, audio_r_pre;
+aud_mix_top audmix_r
+(
+	.clk(clk_audio),
+	.att(vol_att),
+	.mix(audio_mix),
+	.is_signed(audio_s),
+
+	.core_audio(audio_rs),
+	.pre_in(audio_l_pre),
+	.linux_audio(alsa_r),
+
+	.pre_out(audio_r_pre),
+	.out(audio_r)
+);
+
+wire spdif;
+audio_out audio_out
+(
+	.reset(reset),
+	.clk(clk_audio),
+	.sample_rate(0), //0 - 48KHz, 1 - 96KHz
+	.left_in(audio_l),
+	.right_in(audio_r),
+	.i2s_bclk(AUD_BCLK),
+	.i2s_lrclk(AUD_DACLRCK),
+	.i2s_data(AUD_DACDAT)
+);
+endmodule
+
+//***********************************digital audio mixer module***********************************
+module aud_mix_top
+(
+	input             clk,
+
+	input       [4:0] att,
+	input       [1:0] mix,
+	input             is_signed,
+
+	input      [15:0] core_audio,
+	input      [15:0] linux_audio,
+	input      [15:0] pre_in,
+
+	output reg [15:0] pre_out,
+	output reg [15:0] out
+);
+
+reg [15:0] ca;
+always @(posedge clk) begin
+	reg [15:0] d1,d2,d3;
+
+	d1 <= core_audio; d2<=d1; d3<=d2;
+	if(d2 == d3) ca <= d2;
+end
+
+always @(posedge clk) begin
+	reg signed [16:0] a1, a2, a3, a4;
+
+	a1 <= is_signed ? {ca[15],ca} : {2'b00,ca[15:1]};
+	a2 <= a1 + {linux_audio[15],linux_audio};
+
+	pre_out <= a2[16:1];
+
+	case(mix)
+		0: a3 <= a2;
+		1: a3 <= $signed(a2) - $signed(a2[16:3]) + $signed(pre_in[15:2]);
+		2: a3 <= $signed(a2) - $signed(a2[16:2]) + $signed(pre_in[15:1]);
+		3: a3 <= {a2[16],a2[16:1]} + {pre_in[15],pre_in};
+	endcase
+
+	if(att[4]) a4 <= 0;
+	else a4 <= a3 >>> att[3:0];
+
+	//clamping
+	out <= ^a4[16:15] ? {a4[16],{15{a4[15]}}} : a4[15:0];
 end
 
 endmodule
