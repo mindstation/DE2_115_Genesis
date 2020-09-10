@@ -62,7 +62,19 @@ module DE2_115_Genesis
 	output        SD_CS,
 	input         SD_CD,
 
-	//High latency DDR3 RAM interface
+	//SDRAM interface with lower latency
+	output        DRAM_CLK,
+	output        DRAM_CKE,
+	output [12:0] DRAM_ADDR,
+	output  [1:0] DRAM_BA,
+	inout  [15:0] DRAM_DQ,
+	output  [1:0] DRAM_DQM,
+	output        DRAM_CS_N,
+	output        DRAM_CAS_N,
+	output        DRAM_RAS_N,
+	output        DRAM_WE_N,
+
+//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
 	input         DDRAM_BUSY,
@@ -74,20 +86,7 @@ module DE2_115_Genesis
 	output [63:0] DDRAM_DIN,
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
-
-	//SDRAM interface with lower latency
-	output        SDRAM_CLK,
-	output        SDRAM_CKE,
-	output [12:0] SDRAM_A,
-	output  [1:0] SDRAM_BA,
-	inout  [15:0] SDRAM_DQ,
-	output        SDRAM_DQML,
-	output        SDRAM_DQMH,
-	output        SDRAM_nCS,
-	output        SDRAM_nCAS,
-	output        SDRAM_nRAS,
-	output        SDRAM_nWE,
-
+	
 	input         UART_CTS,
 	output        UART_RTS,
 	input         UART_RXD,
@@ -726,8 +725,18 @@ lightgun lightgun
 ///////////////////////////////////////////////////
 //***********************************sdram module***********************************
 sdram sdram
-(
-	.*,
+(	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
+	.SDRAM_A(DRAM_ADDR),    // 13 bit multiplexed address bus
+	.SDRAM_DQML(DRAM_DQM[0]), // byte mask
+	.SDRAM_DQMH(DRAM_DQM[1]), // byte mask
+	.SDRAM_BA(DRAM_BA),   // two banks
+	.SDRAM_nCS(DRAM_CS_N),  // a single chip select
+	.SDRAM_nWE(DRAM_WE_N),  // write enable
+	.SDRAM_nRAS(DRAM_RAS_N), // row address select
+	.SDRAM_nCAS(DRAM_CAS_N), // columns address select
+	.SDRAM_CLK(DRAM_CLK),
+	.SDRAM_CKE(DRAM_CKE),
+	
 	.init(~locked),
 	.clk(clk_ram),
 
