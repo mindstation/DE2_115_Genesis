@@ -73,19 +73,6 @@ module DE2_115_Genesis
 	output        DRAM_CAS_N,
 	output        DRAM_RAS_N,
 	output        DRAM_WE_N,
-
-//High latency DDR3 RAM interface
-	//Use for non-critical time purposes
-	output        DDRAM_CLK,
-	input         DDRAM_BUSY,
-	output  [7:0] DDRAM_BURSTCNT,
-	output [28:0] DDRAM_ADDR,
-	input  [63:0] DDRAM_DOUT,
-	input         DDRAM_DOUT_READY,
-	output        DDRAM_RD,
-	output [63:0] DDRAM_DIN,
-	output  [7:0] DDRAM_BE,
-	output        DDRAM_WE,
 	
 	input         UART_CTS,
 	output        UART_RTS,
@@ -548,10 +535,11 @@ system system
 //	.ROM_ACK(use_sdr ? sdrom_rdack : ddrom_rdack),
 	.ROM_ACK(sdrom_rdack),
 
-	.ROM_ADDR2(rom_addr2),
-	.ROM_DATA2(rom_data2),
-	.ROM_REQ2(rom_rd2),
-	.ROM_ACK2(rom_rdack2),
+//MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
+	.ROM_ADDR2(),
+	.ROM_DATA2(),
+	.ROM_REQ2(),
+	.ROM_ACK2(),
 
 	.TRANSP_DETECT(TRANSP_DETECT)
 );
@@ -765,43 +753,16 @@ sdram sdram
 	.ack2()
 );
 
-wire [24:1] rom_addr, rom_addr2;
-wire [15:0] sdrom_data, rom_data2, rom_wdata;
+wire [24:1] rom_addr;
+wire [15:0] sdrom_data, rom_wdata;
 wire  [1:0] rom_be;
 wire rom_req, sdrom_rdack, rom_we;
-
-//***************************DE2-115 doesn't have DDR RAM. Delete Module?***********************************************
-wire rom_rd2, rom_rdack2;
-assign DDRAM_CLK = clk_ram;
-ddram ddram
-(
-//	.*,
-	.wraddr(ioctl_addr[24:1]),
-	.din({ioctl_data[7:0],ioctl_data[15:8]}),
-	.we_req(rom_wr),
-	.we_ack(ddrom_wrack),
-
-	.rdaddr(rom_addr),
-//system module input signal: ROM source
-//	.dout(ddrom_data),
-	.rom_din(rom_wdata),
-	.rom_be(rom_be),
-	.rom_we(rom_we),
-	.rom_req(rom_req),
-//system module input signal: ROM_ACK
-//	.rom_ack(ddrom_rdack),
-
-	.rdaddr2(rom_addr2),
-	.dout2(rom_data2),
-	.rd_req2(rom_rd2),
-	.rd_ack2(rom_rdack2) 
-);
 
 reg use_sdr;
 always @(posedge clk_sys) use_sdr <= (!status[36:35]) ? |sdram_sz[2:0] : status[35];
 
 reg  rom_wr = 0;
-wire sdrom_wrack, ddrom_wrack;
+wire sdrom_wrack;
 reg [24:0] rom_sz;
 //sytem module, ROM size
 assign rom_sz = 24'b000010000000000000000000;
@@ -818,7 +779,7 @@ always @(posedge clk_sys) begin
 	if (cart_download & ioctl_wr) begin
 		ioctl_wait <= 1;
 		rom_wr <= ~rom_wr;
-	end else if(ioctl_wait && (rom_wr == sdrom_wrack) && (rom_wr == ddrom_wrack)) begin
+	end else if(ioctl_wait && (rom_wr == sdrom_wrack)) begin
 		ioctl_wait <= 0;
 	end
 end
