@@ -55,14 +55,14 @@ module DE2_115_Genesis
 	inout         AUD_DACLRCK,
 	output        AUD_XCK,
 	
-	//SD-SPI - not used (SD_SCK, SD_MOSI, SD_CS are set to Z state)
+	// SD-SPI - not used (SD_SCK, SD_MOSI, SD_CS are set to Z state)
 	output        SD_SCK,
 	output        SD_MOSI,
 	input         SD_MISO,
 	output        SD_CS,
 	input         SD_CD,
 
-	//SDRAM interface with lower latency
+	// SDRAM interface with lower latency
 	output        DRAM_CLK,
 	output        DRAM_CKE,
 	output [12:0] DRAM_ADDR,
@@ -74,28 +74,12 @@ module DE2_115_Genesis
 	output        DRAM_RAS_N,
 	output        DRAM_WE_N,
 	
-	input         UART_CTS,
-	output        UART_RTS,
-	input         UART_RXD,
-	output        UART_TXD,
-	output        UART_DTR,
-	input         UART_DSR,
-
-	// Open-drain User port.
-	// 0 - D+/RX
-	// 1 - D-/TX
-	// 2..6 - USR2..USR6
-	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
-
-	input         OSD_STATUS
+	// [35:30] Open-drain User port (MiSTER SERJOYSTICK).
+	inout [35:30] GPIO
 );
 
 //A global reset signal (active HIGHT)
 wire RESET = SW[0];
-
-assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 
 //BUTTONS old output DE2_115_genesis module for MiSTer top module
 //assign BUTTONS   = osd_btn;
@@ -294,7 +278,7 @@ assign gamma_bus[7:0] = '0;
 //status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
 //status[63:48] loopback to HPS_BUS. Ignore {status[63:48], status[34], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
 //                 63               47                         31                         15                        0
-assign status = 64'b0000000000000000_0_0_11_1_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_000_0;
+assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_000_0;
 
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
@@ -318,7 +302,7 @@ assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
 assign ioctl_wr = '1;
 //exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
-//ioctl_addr[24:1] used by sdram module as write address for sdram port0
+//ioctl_addr[24:1] used by sdram module as write address for sdram port0 when ROM uploads to RAM
 //ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
 assign ioctl_addr = 25'b0000000000000000000001111;
 //exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
@@ -959,12 +943,12 @@ always @(posedge clk_sys) begin
 	if(downloading && img_mounted && !img_readonly && ~svp_quirk) bk_ena <= 1;
 
 	old_change <= bk_change;
-	if (~old_change & bk_change & ~OSD_STATUS) sav_pending <= status[13];
+	if (~old_change & bk_change) sav_pending <= status[13];
 	else if (bk_state) sav_pending <= 0;
 end
 
 wire bk_load    = status[16];
-wire bk_save    = status[17] | (sav_pending & OSD_STATUS);
+wire bk_save    = status[17] | sav_pending;
 reg  bk_loading = 0;
 reg  bk_state   = 0;
 
@@ -1009,32 +993,57 @@ always @(posedge clk_sys) begin
 	end
 end
 
+////////////////  MiSTER SERJOYSTICK /////////////////////////
+assign GPIO = user_io;
+
+// 0 - D+/RX
+// 1 - D-/TX
+// 2..6 - USR2..USR6
+// Set user_out to 1 to read from user_in.
+wire [6:0] user_out, user_in, user_io;
+
+assign user_io[0] = !user_out[0] ? 1'b0 : 1'bZ;
+assign user_io[1] = !user_out[1] ? 1'b0 : 1'bZ;
+assign user_io[2] = !user_out[2] ? 1'b0 : 1'bZ;
+assign user_io[3] = !user_out[3] ? 1'b0 : 1'bZ;
+assign user_io[4] = !user_out[4] ? 1'b0 : 1'bZ;
+assign user_io[5] = !user_out[5] ? 1'b0 : 1'bZ;
+assign user_io[6] = !user_out[6] ? 1'b0 : 1'bZ;
+
+assign user_in[0] = user_io[0];
+assign user_in[1] = user_io[1];
+assign user_in[2] = user_io[2];
+assign user_in[3] = user_io[3];
+assign user_in[4] = user_io[4];
+assign user_in[5] = user_io[5];
+assign user_in[6] = user_io[6];
+
 wire [7:0] SERJOYSTICK_IN;
 wire [7:0] SERJOYSTICK_OUT;
 wire [1:0] SER_OPT;
 
 always @(posedge clk_sys) begin
 	if (status[45]) begin
-		SERJOYSTICK_IN[0] <= USER_IN[1];//up
-		SERJOYSTICK_IN[1] <= USER_IN[0];//down	
-		SERJOYSTICK_IN[2] <= USER_IN[5];//left	
-		SERJOYSTICK_IN[3] <= USER_IN[3];//right
-		SERJOYSTICK_IN[4] <= USER_IN[2];//b TL		
-		SERJOYSTICK_IN[5] <= USER_IN[6];//c TR GPIO7			
-		SERJOYSTICK_IN[6] <= USER_IN[4];//  TH
+		SERJOYSTICK_IN[0] <= user_in[1];//up
+		SERJOYSTICK_IN[1] <= user_in[0];//down	
+		SERJOYSTICK_IN[2] <= user_in[5];//left	
+		SERJOYSTICK_IN[3] <= user_in[3];//right
+		SERJOYSTICK_IN[4] <= user_in[2];//b TL		
+		SERJOYSTICK_IN[5] <= user_in[6];//c TR GPIO7			
+		SERJOYSTICK_IN[6] <= user_in[4];//  TH
 		SERJOYSTICK_IN[7] <= 0;
 		SER_OPT[0] <= status[4];
 		SER_OPT[1] <= ~status[4];
-		USER_OUT[1] <= SERJOYSTICK_OUT[0];
-		USER_OUT[0] <= SERJOYSTICK_OUT[1];
-		USER_OUT[5] <= SERJOYSTICK_OUT[2];
-		USER_OUT[3] <= SERJOYSTICK_OUT[3];
-		USER_OUT[2] <= SERJOYSTICK_OUT[4];
-		USER_OUT[6] <= SERJOYSTICK_OUT[5];
-		USER_OUT[4] <= SERJOYSTICK_OUT[6];
+		user_out[1] <= SERJOYSTICK_OUT[0];
+		user_out[0] <= SERJOYSTICK_OUT[1];
+		user_out[5] <= SERJOYSTICK_OUT[2];
+		user_out[3] <= SERJOYSTICK_OUT[3];
+		user_out[2] <= SERJOYSTICK_OUT[4];
+		user_out[6] <= SERJOYSTICK_OUT[5];
+		user_out[4] <= SERJOYSTICK_OUT[6];
 	end else begin
 		SER_OPT  <= 0;
-		USER_OUT <= '1;
+		user_out <= '1;
 	end
 end
 
