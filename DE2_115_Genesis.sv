@@ -278,7 +278,7 @@ assign gamma_bus[7:0] = '0;
 //status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
 //status[63:48] loopback to HPS_BUS. Ignore {status[63:48], status[34], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
 //                 63               47                         31                         15                        0
-assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_000_0;
+assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_001_0;
 
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
