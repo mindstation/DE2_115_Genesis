@@ -685,10 +685,10 @@ wire [15:0] SVP_DRAM_A;
 wire [15:0] SVP_DRAM_DO;
 wire        SVP_DRAM_WE;
 wire [15:0] SVP_DRAM_DI = BRAM_DO;
-
+/*
 reg SVP_CLKEN;
 always @(posedge MCLK) SVP_CLKEN <= ~reset & ~SVP_CLKEN;
-/*
+
 SVP svp
 (
 	.CLK(MCLK),

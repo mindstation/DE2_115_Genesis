@@ -27,6 +27,7 @@ module DE2_115_Genesis
 
 	// switch inputs
 	// SW[0] - RESET
+	// SW[3] - ROM download
 	// SW[17] - joystick_0_A, SW[16] - joystick_0_B, SW[15] - joystick_0_C, SW[14] - joystick_0_START
    input  [17:0] SW, // Toggle Switch[17:0]
 
@@ -129,9 +130,9 @@ assign led_disk  = 0;
 assign led_power = 0;
 assign led_user  = cart_download | sav_pending;
 
-assign LEDR[0] = led_disk[1] ? led_disk[0] : 1'b0;
-assign LEDR[1] = led_power[1] ? led_power[0] : 1'b0;
-assign LEDG[0] = led_user;
+assign LEDG[0] = led_disk[1] ? led_disk[0] : 1'b0;
+assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
+assign LEDR[0] = led_user;
 
 // Status Bit Map:
 //             Upper                             Lower              
@@ -296,7 +297,7 @@ assign joy1_y = '0;
 assign joy1_x = '0;
 
 //exHSP signal indicating an active cart/GG download (1 bit). No system reset and hard_reset when it's LOW
-assign ioctl_download = '0;
+assign ioctl_download = SW[3];
 //exHPS signal, menu index used to upload the file (8 bit). If it's LOW, then cart_download will be HIGH when ioctl_download is HIGH
 assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
@@ -373,7 +374,6 @@ wire clk_sys, clk_ram, locked;
 pll pll
 (
 	.inclk0(CLOCK_50),
-	.areset(0),
 	.c0(clk_sys),
 	.c1(clk_ram),
 	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
@@ -431,6 +431,7 @@ wire [7:0] color_lut[16] = '{
 //***********************************fpgagen top module***********************************
 system system
 (
+//INPUTS
 	.RESET_N(~reset),
 	.MCLK(clk_sys),
 
@@ -443,32 +444,17 @@ system system
 	.PIER_QUIRK(pier_quirk),
 	.FMBUSY_QUIRK(fmbusy_quirk),
 
-	.DAC_LDATA(audio_ls),
-	.DAC_RDATA(audio_rs),
-	
 	.TURBO(status[26:25]),
 
-	.RED(r),
-	.GREEN(g),
-	.BLUE(b),
-	.VS(vs),
-	.HS(hs),
-	.HBL(hblank),
-	.VBL(vblank),
 	.BORDER(status[29]),
-	.CE_PIX(ce_pix),
-//input for HPS. Not used.
-//	.FIELD(VGA_F1),
-	.INTERLACE(interlace),
-	.RESOLUTION(resolution),
+
 	.FAST_FIFO(fifo_quirk),
 	.SVP_QUIRK(svp_quirk),
 	.SCHAN_QUIRK(schan_quirk),
-	
+
 	.GG_RESET(code_download && ioctl_wr && !ioctl_addr),
 	.GG_EN(status[24]),
 	.GG_CODE(gg_code),
-	.GG_AVAILABLE(gg_available),
 
 	.J3BUT(~status[5]),
 	.JOY_1(status[4] ? joystick_1 : joystick_0),
@@ -480,7 +466,7 @@ system system
 
 	.MOUSE(ps2_mouse),
 	.MOUSE_OPT(status[20:18]),
-	
+
 	.GUN_OPT(|gun_mode),
 	.GUN_TYPE(gun_type),
 	.GUN_SENSOR(lg_sensor),
@@ -490,7 +476,6 @@ system system
 	.GUN_START(lg_start),
 
 	.SERJOYSTICK_IN(SERJOYSTICK_IN),
-	.SERJOYSTICK_OUT(SERJOYSTICK_OUT),
 	.SER_OPT(SER_OPT),
 
 	.ENABLE_FM(~dbg_menu | ~status[32]),
@@ -503,27 +488,53 @@ system system
 
 	.BRAM_A({sd_lba[6:0],sd_buff_addr}),
 	.BRAM_DI(sd_buff_dout),
-//input for HPS. Not used.
-//	.BRAM_DO(sd_buff_din),
 	.BRAM_WE(sd_buff_wr & sd_ack),
-	.BRAM_CHANGE(bk_change),
+
 	.ROMSZ(rom_sz[24:1]),
-	.ROM_ADDR(rom_addr),
 //	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
-//Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system / SVP module
+//Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system/SVP module
 	.ROM_DATA(sdrom_data),
-	.ROM_WDATA(rom_wdata),
-	.ROM_WE(rom_we),
-	.ROM_BE(rom_be),
-	.ROM_REQ(rom_req),
 //	.ROM_ACK(use_sdr ? sdrom_rdack : ddrom_rdack),
 	.ROM_ACK(sdrom_rdack),
 
 //MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
-	.ROM_ADDR2(),
 	.ROM_DATA2(),
-	.ROM_REQ2(),
 	.ROM_ACK2(),
+
+//OUTPUTS
+	.DAC_LDATA(audio_ls),
+	.DAC_RDATA(audio_rs),
+
+	.RED(r),
+	.GREEN(g),
+	.BLUE(b),
+	.VS(vs),
+	.HS(hs),
+	.HBL(hblank),
+	.VBL(vblank),
+	.CE_PIX(ce_pix),
+//input for HPS. Not used.
+//	.FIELD(VGA_F1),
+	.INTERLACE(interlace),
+	.RESOLUTION(resolution),
+
+	.GG_AVAILABLE(gg_available),
+
+	.SERJOYSTICK_OUT(SERJOYSTICK_OUT),
+
+//input for HPS. Not used.
+//	.BRAM_DO(sd_buff_din),
+	.BRAM_CHANGE(bk_change),
+
+	.ROM_ADDR(rom_addr),
+	.ROM_WDATA(rom_wdata),
+	.ROM_WE(rom_we),
+	.ROM_BE(rom_be),
+	.ROM_REQ(rom_req),
+
+//MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
+	.ROM_ADDR2(),
+	.ROM_REQ2(),
 
 	.TRANSP_DETECT(TRANSP_DETECT)
 );
@@ -696,6 +707,11 @@ lightgun lightgun
 
 ///////////////////////////////////////////////////
 //***********************************sdram module***********************************
+//debug
+//assign DRAM_CLK = clk_ram;
+assign LEDG[8] = locked;
+//debug
+
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
 	.SDRAM_A(DRAM_ADDR),    // 13 bit multiplexed address bus
@@ -711,7 +727,7 @@ sdram sdram
 	
 	.init(~locked),
 	.clk(clk_ram),
-
+/*
 	.addr0(ioctl_addr[24:1]),
 	.din0({ioctl_data[7:0],ioctl_data[15:8]}),
 	.dout0(),
@@ -719,6 +735,14 @@ sdram sdram
 	.wrh0(1),
 	.req0(rom_wr),
 	.ack0(sdrom_wrack),
+*/
+	.addr0(0),
+	.din0(0),
+	.dout0(),
+	.wrl0(0),
+	.wrh0(0),
+	.req0(0),
+	.ack0(),
 
 	.addr1(rom_addr),
 	.din1(rom_wdata),
@@ -749,7 +773,7 @@ reg  rom_wr = 0;
 wire sdrom_wrack;
 reg [24:0] rom_sz;
 //sytem module, ROM size
-assign rom_sz = 24'b000010000000000000000000;
+assign rom_sz = 24'b000001000000000000000000;
 
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
