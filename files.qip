@@ -21,3 +21,4 @@ set_global_assignment -name VERILOG_FILE rtl/fourway.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/multitap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/system.sv
 set_global_assignment -name SYSTEMVERILOG_FILE DE2_115_Genesis.sv
+set_global_assignment -name SDC_FILE DE2_115_Genesis.sdc

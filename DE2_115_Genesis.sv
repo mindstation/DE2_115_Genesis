@@ -377,6 +377,7 @@ pll pll
 	.c0(clk_sys),
 	.c1(clk_ram),
 	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
+	.c3(dcoun_clk), //DEBUG
 	.locked(locked)
 );
 
@@ -642,9 +643,9 @@ video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.VGA_VS(VGA_VS),
 	.VGA_HS(VGA_HS),
 	.VGA_DE(VGA_DE),
-	
+
 	.gamma_bus(gamma_bus),
-	
+
 	.clk_vid(CLK_VIDEO),
 	.ce_pix(~old_ce_pix & ce_pix),
 	.ce_pix_out(CE_PIXEL),
@@ -708,9 +709,14 @@ lightgun lightgun
 ///////////////////////////////////////////////////
 //***********************************sdram module***********************************
 //debug
-//assign DRAM_CLK = clk_ram;
+wire dcoun_clk;
+assign DRAM_CLK = clk_ram;
 assign LEDG[8] = locked;
-//debug
+dcounter dramclk_debug
+(
+	.clk(dcoun_clk),
+	.count(LEDR[17:10])
+);
 
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
@@ -722,9 +728,9 @@ sdram sdram
 	.SDRAM_nWE(DRAM_WE_N),  // write enable
 	.SDRAM_nRAS(DRAM_RAS_N), // row address select
 	.SDRAM_nCAS(DRAM_CAS_N), // columns address select
-	.SDRAM_CLK(DRAM_CLK),
+//	.SDRAM_CLK(DRAM_CLK),
 	.SDRAM_CKE(DRAM_CKE),
-	
+
 	.init(~locked),
 	.clk(clk_ram),
 /*
@@ -853,7 +859,7 @@ always @(posedge clk_sys) begin
 	if(~old_download && cart_download) {hdr_j,hdr_u,hdr_e} <= 0;
 	if(old_download && ~cart_download) cart_hdr_ready <= 0;
 
-	if(ioctl_wr & cart_download) begin	
+	if(ioctl_wr & cart_download) begin
 		if(ioctl_addr == 'h1F0 || ioctl_addr == 'h1F2) begin
 //Really need to compare ioctl_addr == 'h1F0 there^?
 			if(ioctl_data[7:0] == "J") hdr_j <= 1;
@@ -1049,11 +1055,11 @@ wire [1:0] SER_OPT;
 always @(posedge clk_sys) begin
 	if (status[45]) begin
 		SERJOYSTICK_IN[0] <= user_in[1];//up
-		SERJOYSTICK_IN[1] <= user_in[0];//down	
-		SERJOYSTICK_IN[2] <= user_in[5];//left	
+		SERJOYSTICK_IN[1] <= user_in[0];//down
+		SERJOYSTICK_IN[2] <= user_in[5];//left
 		SERJOYSTICK_IN[3] <= user_in[3];//right
-		SERJOYSTICK_IN[4] <= user_in[2];//b TL		
-		SERJOYSTICK_IN[5] <= user_in[6];//c TR GPIO7			
+		SERJOYSTICK_IN[4] <= user_in[2];//b TL
+		SERJOYSTICK_IN[5] <= user_in[6];//c TR GPIO7
 		SERJOYSTICK_IN[6] <= user_in[4];//  TH
 		SERJOYSTICK_IN[7] <= 0;
 		SER_OPT[0] <= status[4];
@@ -1184,4 +1190,22 @@ always @(posedge clk) begin
 	out <= ^a4[16:15] ? {a4[16],{15{a4[15]}}} : a4[15:0];
 end
 
+endmodule
+
+
+//***********************************DEBUG modules***********************************
+module dcounter (
+	input wire       clk,
+	output reg [7:0] count
+);
+wire [31:0] counter;
+
+assign count = counter[31:24];
+	always @(posedge clk)
+		begin
+			if (&counter)
+				counter = 0;
+			else
+				counter = counter + 1;
+		end
 endmodule

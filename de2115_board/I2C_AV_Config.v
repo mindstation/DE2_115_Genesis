@@ -15,7 +15,7 @@ module I2C_AV_Config ( // Host Side
        iRST_N,
                        // I2C Side
        oI2C_SCLK,
-       oI2C_SDAT	
+       oI2C_SDAT
    );
 
 //	Host Side
