@@ -75,7 +75,7 @@ BEGIN
 	GENERIC MAP (
 		clock_enable_input_a => "BYPASS",
 		clock_enable_output_a => "BYPASS",
-		intended_device_family => "Cyclone V",
+		intended_device_family => "Cyclone IV E",
 		lpm_hint => "ENABLE_RUNTIME_MOD=YES,INSTANCE_NAME="&mem_name,
 		lpm_type => "altsyncram",
 		numwords_a => numwords,
@@ -287,7 +287,7 @@ BEGIN
 		clock_enable_output_a => "BYPASS",
 		clock_enable_output_b => "BYPASS",
 		indata_reg_b => "CLOCK1",
-		intended_device_family => "Cyclone V",
+		intended_device_family => "Cyclone IV E",
 		lpm_type => "altsyncram",
 		numwords_a => 2**addr_width_a,
 		numwords_b => 2**addr_width_b,

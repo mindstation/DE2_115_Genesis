@@ -41,8 +41,8 @@ module DE2_115_Genesis
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_CLK,
-	output        VGA_BLANK,
-	output        VGA_SYNC,
+	output        VGA_BLANK_N,
+	output        VGA_SYNC_N,
 	
 	output [17:0] LEDR,
 	output  [8:0] LEDG,	
@@ -55,13 +55,6 @@ module DE2_115_Genesis
 	output        AUD_DACDAT,
 	inout         AUD_DACLRCK,
 	output        AUD_XCK,
-	
-	// SD-SPI - not used (SD_SCK, SD_MOSI, SD_CS are set to Z state)
-	output        SD_SCK,
-	output        SD_MOSI,
-	input         SD_MISO,
-	output        SD_CS,
-	input         SD_CD,
 
 	// SDRAM interface with lower latency
 	output        DRAM_CLK,
@@ -76,49 +69,8 @@ module DE2_115_Genesis
 	output        DRAM_WE_N,
 	
 	// [35:30] Open-drain User port (MiSTER SERJOYSTICK).
-	inout [35:30] GPIO
+	inout [35:29] GPIO
 );
-
-//A global reset signal (active HIGHT)
-wire RESET = SW[0];
-
-//BUTTONS old output DE2_115_genesis module for MiSTer top module
-//assign BUTTONS   = osd_btn;
-
-assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-
-wire [7:0] VIDEO_ARX, VIDEO_ARY;
-always_comb begin
-	if (status[10]) begin
-		VIDEO_ARX = 8'd16;
-		VIDEO_ARY = 8'd9;
-	end else begin
-		case(res) // {V30, H40}
-			2'b00: begin // 256 x 224
-				VIDEO_ARX = 8'd64;
-				VIDEO_ARY = 8'd49;
-			end
-
-			2'b01: begin // 320 x 224
-				VIDEO_ARX = status[30] ? 8'd10: 8'd64;
-				VIDEO_ARY = status[30] ? 8'd7 : 8'd49;
-			end
-
-			2'b10: begin // 256 x 240
-				VIDEO_ARX = 8'd128;
-				VIDEO_ARY = 8'd105;
-			end
-
-			2'b11: begin // 320 x 240
-				VIDEO_ARX = status[30] ? 8'd4 : 8'd128;
-				VIDEO_ARY = status[30] ? 8'd3 : 8'd105;
-			end
-		endcase
-	end
-end
-
-//assign VIDEO_ARX = status[10] ? 8'd16 : ((status[30] && wide_ar) ? 8'd10 : 8'd64);
-//assign VIDEO_ARY = status[10] ? 8'd9  : ((status[30] && wide_ar) ? 8'd7  : 8'd49);
 
 // b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
@@ -128,7 +80,7 @@ wire        led_user;
 
 assign led_disk  = 0;
 assign led_power = 0;
-assign led_user  = cart_download | sav_pending;
+assign led_user  = cart_download;
 
 assign LEDG[0] = led_disk[1] ? led_disk[0] : 1'b0;
 assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
@@ -198,7 +150,7 @@ wire [21:0] gamma_bus;
 
 //exHPS OUTPUTS
 wire [63:0] status;
-wire [11:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
+wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 
 wire        ioctl_download;
@@ -207,23 +159,11 @@ wire [24:0] ioctl_addr;
 wire [15:0] ioctl_data;
 wire  [7:0] ioctl_index;
 
-wire        sd_ack;
-wire  [7:0] sd_buff_addr;
-wire [15:0] sd_buff_dout;
-wire        sd_buff_wr;
-wire        img_mounted;
-wire        img_readonly;
-wire [63:0] img_size;
-
 //wire        forced_scandoubler;
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
 
-wire [15:0] sdram_sz;
-
 //exHPS inputs
-//sd_lba is 32-bit a SD-card address part. It is used as BRAM address part in "system" module
-wire [31:0] sd_lba;
 //ioctl_wait is a HPS bus status signal
 wire ioctl_wait;
 //sd_rd and sd_wr VDNUM-1 bit signal (VD is Virtual Drive count). It is used for a SD-card selection for read or write
@@ -266,6 +206,7 @@ assign gamma_bus[7:0] = '0;
 //status[28:27] DE2_115_Genesis, Can be IGNORED. Region priority: 2'b00 - US>EU>JP, 2'b01 - EU>US>JP, 2'b10 - US>JP>EU, 2'b11 - JP>US>EU. Set status_in[7:6] HSP parameter by region_req[1:0]
 //status[29]=1 system, enabled VDP border
 //status[30]=1 then VIDEO_ARX x VIDEO_ARY = 10x7 at 320x224 mode, or VIDEO_ARX x VIDEO_ARY = 4x3 at 320x240 mode. 320x224 aspect: 1 - corrected, 0 - original
+					//VIDEO_ARX x VIDEO_ARY - MiSTER legacy, video aspect ratio for HDMI.
 //status[31]=1 vdp OBJ_LIMIT_HIGH - enable more sprites and pixels per line. 0 - enable sprite limit like MD
 //status[32]=0 ENABLE_FM (active LOW)
 //status[33]=0 ENABLE_PSG (active LOW)
@@ -310,27 +251,16 @@ assign ioctl_addr = 25'b0000000000000000000001111;
 //May be zero, but I set it to "J" region for future, when ROM loading will work
 assign ioctl_data = "JJ";
 
-//exHPS signals with "sd" prefix was used for passthrough SD-card from HPS to FPGA
-//SD-card keep BRAM backup file
-//sd_ack enables cart BRAM save to (loading from) SD cart
-assign sd_ack = '0;
-//sd_buff_addr (8 bit) part of SD-card address bus, not used
-assign sd_buff_addr = '0;
-//sd_buff_dout (16 bit), the system module, BRAM data input bus. Not used
-assign sd_buff_dout = '0;
-//sd_buff_wr signal allow system/BRAM_WE if HIGH together with sd_ack
-assign sd_buff_wr = '0;
-
 //Also using for BRAM save/load, not used
 //img_mounted signaling that new image has been mounted
-assign img_mounted = '1;
+//assign img_mounted = '1;
 //img_readonly signaling that image was mounted as read only. Is HIGH if cart hasn't BRAM. Valid only for active bit in img_mounted
-assign img_readonly = '1;
+//assign img_readonly = '1;
 //img_size - size of image in bytes (64 bit). Valid only for active bit in img_mounted. If non zero and BRAM enabled, then backup file is reading from SD-card after ROM loading
-assign img_size = '0;
+//assign img_size = '0;
 
 //exHPS sdram_sz bus (16 bit, used 3). Enable use SDRAM if non zero. hps_io defines next SDRAM sizes: 0 - none, 1 - 32MB, 2 - 64MB, 3 - 128MB.
-assign sdram_sz = 16'b0000000000000010;
+//assign sdram_sz = 16'b0000000000000010;
 
 //exHPS ps2_key (10-bit) - PS/2 keyboard signal. Not used
 //new data - ps2_key[10], key pressed - ps2_key[9], key code - ps2_key[8:0]
@@ -349,25 +279,8 @@ wire cart_download = ioctl_download & ~code_index;
 //GameGenue code loading
 wire code_download = ioctl_download & code_index;
 
-reg osd_btn = 0;
-always @(posedge clk_sys) begin
-	integer timeout = 0;
-	reg     has_bootrom = 0;
-	reg     last_rst = 0;
+//There was an osd_btn always process (line 330 MiSTER/Genesis.sv)
 
-	if (RESET) last_rst = 0;
-	if (status[0]) last_rst = 1;
-
-	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
-
-	if(last_rst & ~status[0]) begin
-		osd_btn <= 0;
-		if(timeout < 24000000) begin
-			timeout <= timeout + 1;
-			osd_btn <= ~has_bootrom;
-		end
-	end
-end
 ///////////////////////////////////////////////////
 wire clk_sys, clk_ram, locked;
 
@@ -420,7 +333,8 @@ wire hblank, vblank;
 wire interlace;
 wire [1:0] resolution;
 
-wire reset = RESET | status[0] | region_set | bk_loading;
+//A global reset signal (active HIGHT)
+wire reset = SW[0];
 
 wire [7:0] color_lut[16] = '{
 	8'd0,   8'd27,  8'd49,  8'd71,
@@ -487,10 +401,6 @@ system system
 
 	.OBJ_LIMIT_HIGH(status[31]),
 
-	.BRAM_A({sd_lba[6:0],sd_buff_addr}),
-	.BRAM_DI(sd_buff_dout),
-	.BRAM_WE(sd_buff_wr & sd_ack),
-
 	.ROMSZ(rom_sz[24:1]),
 //	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
 //Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system/SVP module
@@ -499,8 +409,8 @@ system system
 	.ROM_ACK(sdrom_rdack),
 
 //MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
-	.ROM_DATA2(),
-	.ROM_ACK2(),
+//	.ROM_DATA2(),
+//	.ROM_ACK2(),
 
 //OUTPUTS
 	.DAC_LDATA(audio_ls),
@@ -525,7 +435,7 @@ system system
 
 //input for HPS. Not used.
 //	.BRAM_DO(sd_buff_din),
-	.BRAM_CHANGE(bk_change),
+//	.BRAM_CHANGE(bk_change),
 
 	.ROM_ADDR(rom_addr),
 	.ROM_WDATA(rom_wdata),
@@ -534,8 +444,8 @@ system system
 	.ROM_REQ(rom_req),
 
 //MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
-	.ROM_ADDR2(),
-	.ROM_REQ2(),
+//	.ROM_ADDR2(),
+//	.ROM_REQ2(),
 
 	.TRANSP_DETECT(TRANSP_DETECT)
 );
@@ -590,19 +500,10 @@ always @(posedge clk_sys) begin
 	if(old_vbl & ~vblank) res <= resolution;
 end
 
-wire [2:0] scale = status[3:1];
-wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
-wire CLK_VIDEO = clk_ram;
-
-assign VGA_CLK = CLK_VIDEO; 
-//assign VGA_SL = {~interlace,~interlace}&sl[1:0];
-
-reg old_ce_pix;
-always @(posedge CLK_VIDEO) old_ce_pix <= ce_pix;
-
-wire [7:0] red, green, blue;
-
 //***********************************Composite-like horizontal blending***********************************
+wire [7:0] red, green, blue;
+wire hs_c,vs_c,hblank_c,vblank_c;
+
 cofi coffee (
 	.clk(clk_sys),
 	.pix_ce(ce_pix),
@@ -625,28 +526,28 @@ cofi coffee (
 	.blue_out(blue)
 );
 
-wire hs_c,vs_c,hblank_c,vblank_c;
-
-//Disable Blank and sync at VGA out.
-assign VGA_BLANK = 1'b1; // (VGA_HS && VGA_VS);
-assign VGA_SYNC = 0;
-
 //***********************************gamma, scandoubler, scanlines***********************************
-wire VGA_DE, CE_PIXEL;
+wire ovmix_vs, ovmix_hs, ovmix_de, CE_PIXEL;
+wire clk_vid = clk_ram;
+wire [7:0] ovmix_r, ovmix_g, ovmix_b;
+
+assign VGA_CLK = clk_vid; 
+
+reg old_ce_pix;
+always @(posedge clk_vid) old_ce_pix <= ce_pix;
 
 video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
-	//VGA outputs
-	.VGA_R(VGA_R),
-	.VGA_G(VGA_G),
-	.VGA_B(VGA_B),
-	.VGA_VS(VGA_VS),
-	.VGA_HS(VGA_HS),
-	.VGA_DE(VGA_DE),
+	.VGA_R(ovmix_r),
+	.VGA_G(ovmix_g),
+	.VGA_B(ovmix_b),
+	.VGA_VS(ovmix_vs),
+	.VGA_HS(ovmix_hs),
+	.VGA_DE(ovmix_de),
 
 	.gamma_bus(gamma_bus),
 
-	.clk_vid(CLK_VIDEO),
+	.clk_vid(clk_vid),
 	.ce_pix(~old_ce_pix & ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
@@ -667,6 +568,50 @@ video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.VBlank(vblank_c)
 );
 
+//scanlines
+wire [2:0] scale = status[3:1];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+wire [2:0] scanlines = {~interlace,~interlace}&sl[1:0];
+
+wire [23:0] vga_data_sl;
+wire vs_fix, hs_fix;
+wire        vga_de_sl, vga_vs_sl, vga_hs_sl;
+scanlines #(0) VGA_scanlines
+(
+	.clk(clk_vid),
+
+	.scanlines(scanlines),
+	.din(ovmix_de ? {ovmix_r, ovmix_g, ovmix_b} : 24'd0),
+	.hs_in(hs_fix),
+	.vs_in(vs_fix),
+	.de_in(ovmix_de),
+
+	.dout(vga_data_sl),
+	.hs_out(VGA_HS), //Or VGA_HS = ~hs_out like MiSTER/sys_top.v(1080)?
+	.vs_out(VGA_VS)  //Or VGA_VS = ~vs_out like MiSTER/sys_top.v(1079)?
+);
+
+sync_fix sync_v(clk_vid, ovmix_vs, vs_fix);
+sync_fix sync_h(clk_vid, ovmix_hs, hs_fix);
+
+wire [23:0] vga_o;
+vga_out vga_out
+(
+	.ypbpr_full(0),
+	.ypbpr_en(0),
+	.dout(vga_o),
+	.din(vga_data_sl)
+);
+
+assign VGA_R  = vga_o[23:18];
+assign VGA_G  = vga_o[15:10];
+assign VGA_B  = vga_o[7:2];
+
+//Disable Blank and sync at VGA out.
+assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
+assign VGA_SYNC_N = 0;
+
+//***********************************lightgun emulation by mouse or joypad***********************************
 wire [2:0] lg_target;
 wire       lg_sensor;
 wire       lg_a;
@@ -674,7 +619,6 @@ wire       lg_b;
 wire       lg_c;
 wire       lg_start;
 
-//***********************************lightgun emulation by mouse or joypad***********************************
 lightgun lightgun
 (
 	.CLK(clk_sys),
@@ -710,14 +654,14 @@ lightgun lightgun
 //***********************************sdram module***********************************
 //debug
 wire dcoun_clk;
-assign DRAM_CLK = clk_ram;
+//assign DRAM_CLK = clk_ram;
 assign LEDG[8] = locked;
 dcounter dramclk_debug
 (
 	.clk(dcoun_clk),
 	.count(LEDR[17:10])
 );
-
+//DE2-115 ISSI IS42S16320D-7TL - 100MHz max.
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
 	.SDRAM_A(DRAM_ADDR),    // 13 bit multiplexed address bus
@@ -728,7 +672,7 @@ sdram sdram
 	.SDRAM_nWE(DRAM_WE_N),  // write enable
 	.SDRAM_nRAS(DRAM_RAS_N), // row address select
 	.SDRAM_nCAS(DRAM_CAS_N), // columns address select
-//	.SDRAM_CLK(DRAM_CLK),
+	.SDRAM_CLK(DRAM_CLK),
 	.SDRAM_CKE(DRAM_CKE),
 
 	.init(~locked),
@@ -772,14 +716,13 @@ wire [15:0] sdrom_data, rom_wdata;
 wire  [1:0] rom_be;
 wire rom_req, sdrom_rdack, rom_we;
 
-reg use_sdr;
-always @(posedge clk_sys) use_sdr <= (!status[36:35]) ? |sdram_sz[2:0] : status[35];
-
-reg  rom_wr = 0;
-wire sdrom_wrack;
 reg [24:0] rom_sz;
 //sytem module, ROM size
-assign rom_sz = 24'b000001000000000000000000;
+assign rom_sz = 24'b000010000000000000000000;
+//Disabled while loading is not work
+/*
+reg  rom_wr = 0;
+wire sdrom_wrack;
 
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
@@ -787,8 +730,7 @@ always @(posedge clk_sys) begin
 	old_reset <= reset;
 
 	if(~old_reset && reset) ioctl_wait <= 0;
-//Disabled while loading is not work
-//	if (old_download & ~cart_download) rom_sz <= ioctl_addr[24:0];
+	if (old_download & ~cart_download) rom_sz <= ioctl_addr[24:0];
 
 	if (cart_download & ioctl_wr) begin
 		ioctl_wait <= 1;
@@ -796,58 +738,6 @@ always @(posedge clk_sys) begin
 	end else if(ioctl_wait && (rom_wr == sdrom_wrack)) begin
 		ioctl_wait <= 0;
 	end
-end
-
-reg  [1:0] region_req;
-reg        region_set = 0;
-
-wire       pressed = ps2_key[9];
-wire [8:0] code    = ps2_key[8:0];
-always @(posedge clk_sys) begin
-	reg old_state, old_ready = 0;
-	old_state <= ps2_key[10];
-
-	if(old_state != ps2_key[10]) begin
-		casex(code)
-			'h005: begin region_req <= 0; region_set <= pressed; end // F1
-			'h006: begin region_req <= 1; region_set <= pressed; end // F2
-			'h004: begin region_req <= 2; region_set <= pressed; end // F3
-		endcase
-	end
-
-	old_ready <= cart_hdr_ready;
-	if(~status[9] & ~old_ready & cart_hdr_ready) begin
-		if(status[8]) begin
-			region_set <= 1;
-			case(status[28:27])
-				0: if(hdr_u) region_req <= 1;
-					else if(hdr_e) region_req <= 2;
-					else if(hdr_j) region_req <= 0;
-					else region_req <= 1;
-				
-				1: if(hdr_e) region_req <= 2;
-					else if(hdr_u) region_req <= 1;
-					else if(hdr_j) region_req <= 0;
-					else region_req <= 2;
-				
-				2: if(hdr_u) region_req <= 1;
-					else if(hdr_j) region_req <= 0;
-					else if(hdr_e) region_req <= 2;
-					else region_req <= 1;
-
-				3: if(hdr_j) region_req <= 0;
-					else if(hdr_u) region_req <= 1;
-					else if(hdr_e) region_req <= 2;
-					else region_req <= 0;
-			endcase
-		end
-		else begin
-			region_set <= |ioctl_index;
-			region_req <= ioctl_index[7:6];
-		end
-	end
-
-	if(old_ready & ~cart_hdr_ready) region_set <= 0;
 end
 
 reg cart_hdr_ready = 0;
@@ -874,7 +764,7 @@ always @(posedge clk_sys) begin
 		if(ioctl_addr == 'h200) cart_hdr_ready <= 1;
 	end
 end
-
+*/
 reg sram_quirk = 0;
 reg eeprom_quirk = 0;
 reg fifo_quirk = 0;
@@ -954,74 +844,7 @@ always @(posedge clk_sys) begin
 end
 
 /////////////////////////  BRAM SAVE/LOAD  /////////////////////////////
-
-
-wire downloading = cart_download;
-
-reg bk_ena = 0;
-reg sav_pending = 0;
-wire bk_change;
-
-always @(posedge clk_sys) begin
-	reg old_downloading = 0;
-	reg old_change = 0;
-
-	old_downloading <= downloading;
-	if(~old_downloading & downloading) bk_ena <= 0;
-
-	//Save file always mounted in the end of downloading state.
-	if(downloading && img_mounted && !img_readonly && ~svp_quirk) bk_ena <= 1;
-
-	old_change <= bk_change;
-	if (~old_change & bk_change) sav_pending <= status[13];
-	else if (bk_state) sav_pending <= 0;
-end
-
-wire bk_load    = status[16];
-wire bk_save    = status[17] | sav_pending;
-reg  bk_loading = 0;
-reg  bk_state   = 0;
-
-always @(posedge clk_sys) begin
-	reg old_downloading = 0;
-	reg old_load = 0, old_save = 0, old_ack;
-
-	old_downloading <= downloading;
-
-	old_load <= bk_load;
-	old_save <= bk_save;
-	old_ack  <= sd_ack;
-
-	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
-
-	if(!bk_state) begin
-		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save))) begin
-			bk_state <= 1;
-			bk_loading <= bk_load;
-			sd_lba <= 0;
-			sd_rd <=  bk_load;
-			sd_wr <= ~bk_load;
-		end
-		if(old_downloading & ~downloading & |img_size & bk_ena) begin
-			bk_state <= 1;
-			bk_loading <= 1;
-			sd_lba <= 0;
-			sd_rd <= 1;
-			sd_wr <= 0;
-		end
-	end else begin
-		if(old_ack & ~sd_ack) begin
-			if(&sd_lba[6:0]) begin
-				bk_loading <= 0;
-				bk_state <= 0;
-			end else begin
-				sd_lba <= sd_lba + 1'd1;
-				sd_rd  <=  bk_loading;
-				sd_wr  <= ~bk_loading;
-			end
-		end
-	end
-end
+//No SD support. SAVE/LOAD for SD cart removed.
 
 ////////////////  MiSTER SERJOYSTICK /////////////////////////
 assign GPIO = user_io;
@@ -1192,6 +1015,36 @@ end
 
 endmodule
 
+//***********************************video h/v sync fix module***********************************
+
+module sync_fix
+(
+	input clk,
+	
+	input sync_in,
+	output sync_out
+);
+
+assign sync_out = sync_in ^ pol;
+
+reg pol;
+always @(posedge clk) begin
+	integer pos = 0, neg = 0, cnt = 0;
+	reg s1,s2;
+
+	s1 <= sync_in;
+	s2 <= s1;
+
+	if(~s2 & s1) neg <= cnt;
+	if(s2 & ~s1) pos <= cnt;
+
+	cnt <= cnt + 1;
+	if(s2 != s1) cnt <= 0;
+
+	pol <= pos > neg;
+end
+
+endmodule
 
 //***********************************DEBUG modules***********************************
 module dcounter (

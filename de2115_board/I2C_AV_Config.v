@@ -64,7 +64,7 @@ begin
 	else
 	begin
 		if (mI2C_CLK_DIV < (CLK_Freq/I2C_Freq))
-			mI2C_CLK_DIV	<=	mI2C_CLK_DIV+1;
+			mI2C_CLK_DIV	<=	mI2C_CLK_DIV+1'd1;
 		else
 		begin
 			mI2C_CLK_DIV	<=	0;
@@ -112,7 +112,7 @@ begin
 					end
 				end
 			2:	begin
-					LUT_INDEX	<= LUT_INDEX+1;
+					LUT_INDEX	<= LUT_INDEX+1'd1;
 					mSetup_ST	<= 0;
 				end
 			endcase
