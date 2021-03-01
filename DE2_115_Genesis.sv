@@ -661,7 +661,7 @@ dcounter dramclk_debug
 	.clk(dcoun_clk),
 	.count(LEDR[17:10])
 );
-//DE2-115 ISSI IS42S16320D-7TL - 100MHz max.
+//DE2-115 ISSI IS42S16320D-7TL - 100MHz at CAS=2 or 143MHz at CAS=3.
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
 	.SDRAM_A(DRAM_ADDR),    // 13 bit multiplexed address bus
@@ -694,7 +694,7 @@ sdram sdram
 	.req0(0),
 	.ack0(),
 
-	.addr1(rom_addr),
+	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
 	.din1(rom_wdata),
 	.dout1(sdrom_data),
 	.wrl1(rom_we & rom_be[0]),
@@ -718,7 +718,9 @@ wire rom_req, sdrom_rdack, rom_we;
 
 reg [24:0] rom_sz;
 //sytem module, ROM size
+//1MB 
 assign rom_sz = 24'b000010000000000000000000;
+//4MB assign rom_sz = 24'b001000000000000000000000;
 //Disabled while loading is not work
 /*
 reg  rom_wr = 0;
