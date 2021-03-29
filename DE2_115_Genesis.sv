@@ -69,7 +69,16 @@ module DE2_115_Genesis
 	output        DRAM_WE_N,
 	
 	// [35:30] Open-drain User port (MiSTER SERJOYSTICK).
-	inout [35:29] GPIO
+	inout [35:29] GPIO,
+	
+	// FLASH interface
+	output		  FL_RST_N,
+	output		  FL_CE_N,
+	output		  FL_OE_N,
+	output		  FL_WE_N,
+	output		  FL_WP_N,
+	output [22:0] FL_ADDR,
+	input  [7:0]  FL_DQ
 );
 
 // b[1]: 0 - LED status is system status OR'd with b[0]
@@ -153,7 +162,7 @@ wire [63:0] status;
 wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 
-wire        ioctl_download;
+//wire        ioctl_download;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [15:0] ioctl_data;
@@ -237,8 +246,7 @@ assign joy0_x = '0;
 assign joy1_y = '0;
 assign joy1_x = '0;
 
-//exHSP signal indicating an active cart/GG download (1 bit). No system reset and hard_reset when it's LOW
-assign ioctl_download = SW[3];
+//exHSP signal, ioctl_download - indicating an active cart/GG download (1 bit). No system reset and hard_reset when it's LOW
 //exHPS signal, menu index used to upload the file (8 bit). If it's LOW, then cart_download will be HIGH when ioctl_download is HIGH
 assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
@@ -275,9 +283,9 @@ wire [1:0] gun_mode = status[41:40];
 wire       gun_btn_mode = status[42];
 
 wire code_index = &ioctl_index;
-wire cart_download = ioctl_download & ~code_index;
+wire cart_download = rom_loading & ~code_index;
 //GameGenue code loading
-wire code_download = ioctl_download & code_index;
+wire code_download = rom_loading & code_index;
 
 //There was an osd_btn always process (line 330 MiSTER/Genesis.sv)
 
@@ -655,12 +663,12 @@ lightgun lightgun
 //debug
 wire dcoun_clk;
 //assign DRAM_CLK = clk_ram;
-assign LEDG[8] = locked;
 dcounter dramclk_debug
 (
 	.clk(dcoun_clk),
 	.count(LEDR[17:10])
 );
+//debug
 //DE2-115 ISSI IS42S16320D-7TL - 100MHz at CAS=2 or 143MHz at CAS=3.
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
@@ -686,15 +694,16 @@ sdram sdram
 	.req0(rom_wr),
 	.ack0(sdrom_wrack),
 */
-	.addr0(0),
-	.din0(0),
+	.addr0(loadrom_addr),
+	.din0(loadrom_wdata),
 	.dout0(),
-	.wrl0(0),
-	.wrh0(0),
-	.req0(0),
-	.ack0(),
+	.wrl0(loadrom_wrl),
+	.wrh0(loadrom_wrh),
+	.req0(loadrom_req),
+	.ack0(loadrom_ack),
 
-	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
+//work if same is flashtosdram_copier	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
+	.addr1(rom_addr),
 	.din1(rom_wdata),
 	.dout1(sdrom_data),
 	.wrl1(rom_we & rom_be[0]),
@@ -711,6 +720,55 @@ sdram sdram
 	.ack2()
 );
 
+///////////////////////////////////////////////////
+//***********************************ROM loader***********************************
+wire	[23:1] fl_addr;
+wire	[15:0] fl_dout;
+wire			 fl_req, fl_ack;
+wire	[24:1] loadrom_addr;
+wire	[15:0] loadrom_wdata;
+wire			 loadrom_req, loadrom_ack, loadrom_wrl, loadrom_wrh, rom_loading;
+
+flash flash
+(
+	.iclk(clk_sys),
+	.ireset(reset),
+
+	.iFL_DQ(FL_DQ),
+	.oFL_ADDR(FL_ADDR),
+	.oFL_RST_N(FL_RST_N),
+	.oFL_CE_N(FL_CE_N),
+	.oFL_OE_N(FL_OE_N),
+	.oFL_WE_N(FL_WE_N),
+	.oFL_WP_N(FL_WP_N), // write protection is disabled (set to 1)
+	
+	.ifl_addr(fl_addr),
+	.ofl_dout(fl_dout),
+	.ifl_req(fl_req),
+	.ofl_ack(fl_ack)
+);
+
+rom_loader rom_loader
+(
+	.iclk(clk_sys),
+	.ireset(reset),
+
+	.oloading(rom_loading),
+	
+// SDRAM	
+	.oram_addr(loadrom_addr),
+	.oram_wrdata(loadrom_wdata),
+	.oram_req(loadrom_req),
+	.iram_ack(loadrom_ack),
+	.oram_Wrl(loadrom_wrl), .oram_Wrh(loadrom_wrh),
+
+//Flash
+	.ofl_addr(fl_addr),
+	.ifl_data(fl_dout),
+	.ofl_req(fl_req),
+	.ifl_ack(fl_ack)
+);
+
 wire [24:1] rom_addr;
 wire [15:0] sdrom_data, rom_wdata;
 wire  [1:0] rom_be;
@@ -718,8 +776,9 @@ wire rom_req, sdrom_rdack, rom_we;
 
 reg [24:0] rom_sz;
 //sytem module, ROM size
-//1MB 
-assign rom_sz = 24'b000010000000000000000000;
+//512kB
+assign rom_sz = 24'b000001000000000000000000;
+//1MB assign rom_sz = 24'b000010000000000000000000;
 //4MB assign rom_sz = 24'b001000000000000000000000;
 //Disabled while loading is not work
 /*
