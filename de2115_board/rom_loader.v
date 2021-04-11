@@ -6,28 +6,30 @@ module rom_loader
 	output reg		  oloading,
 	
 // SDRAM	
-	input               iram_ack,
-	output		 [24:1] oram_addr,
-	output reg [15:0] oram_wrdata,
-	output reg        oram_req,
+	input             irom_load_wait,
+	output reg			orom_load_wr,
 	output reg        oram_Wrl, oram_Wrh,
+	output	  [24:1] oram_addr,
+	output reg [15:0] oram_wrdata,
+	
 
 //Flash
 	output 		 [23:1] ofl_addr,
 	input			 [15:0] ifl_data,
-	output reg        ofl_req,
+	output reg			  ofl_req,
 	input					  ifl_ack
 );
 
 localparam FL_SIZE		= 23'b1111111_11111111_11111110; // DE2-115 has 8MB Flash, word aligned address
 
-localparam INIT			= 3'd0,
-			  FL_READ		= 3'd1,
-			  FL_ACK_WAIT	= 3'd2,
-			  RAM_WRITE		= 3'd3,
-			  RAM_ACK_WAIT	= 3'd4,
-			  ADDR_INC		= 3'd5,
-			  STOP			= 3'd6;
+localparam INIT					= 3'd0,
+			  FL_READ				= 3'd1,
+			  FL_ACK_WAIT			= 3'd2,
+			  RAM_WRITE_READY		= 3'd3,
+			  RAM_WRITE				= 3'd4,
+			  RAM_WRITE_WAIT		= 3'd5,
+			  ADDR_INC				= 3'd6,
+			  STOP					= 3'd7;
 
 reg [2:0]  fsm_state;
 reg [23:1] fl_addr_counter;
@@ -60,16 +62,21 @@ always @(posedge iclk)
 					end
 				FL_ACK_WAIT:
 					if (ofl_req == ifl_ack)
-						fsm_state <= RAM_WRITE;
-				RAM_WRITE:
+						fsm_state <= RAM_WRITE_READY;
+				RAM_WRITE_READY:
 					begin
 						oram_wrdata <= ifl_data;
-						oram_req <= ~iram_ack;
-						fsm_state <= RAM_ACK_WAIT;
+						orom_load_wr <= 1'b1;
+						fsm_state <= RAM_WRITE;
 					end
-				RAM_ACK_WAIT:
-					if (oram_req == iram_ack)
-						fsm_state <= ADDR_INC;
+				RAM_WRITE:
+					begin
+						orom_load_wr <= 1'b0;
+						fsm_state <= RAM_WRITE_WAIT;
+					end
+				RAM_WRITE_WAIT:
+					if (irom_load_wait == 1'b0)
+							fsm_state <= ADDR_INC;
 				ADDR_INC:
 					if (fl_addr_counter < FL_SIZE)
 						begin

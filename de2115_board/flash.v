@@ -68,7 +68,7 @@ always @(posedge iclk)
 						oFL_ADDR <= oFL_ADDR + 6'd1;
 					NEXT_BYTE:
 						begin
-							ofl_dout <= {fstbyte, iFL_DQ}; // Flash data word
+							ofl_dout <= {iFL_DQ, fstbyte}; // Flash data word, big endian
 							ofl_ack <= ifl_req;
 							fsm_state <= IDLE;
 						end					

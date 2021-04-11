@@ -163,8 +163,8 @@ wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 
 //wire        ioctl_download;
-wire        ioctl_wr;
-wire [24:0] ioctl_addr;
+//wire        ioctl_wr;
+//wire [24:0] ioctl_addr;
 wire [15:0] ioctl_data;
 wire  [7:0] ioctl_index;
 
@@ -174,7 +174,7 @@ wire [24:0] ps2_mouse;
 
 //exHPS inputs
 //ioctl_wait is a HPS bus status signal
-wire ioctl_wait;
+//wire ioctl_wait;
 //sd_rd and sd_wr VDNUM-1 bit signal (VD is Virtual Drive count). It is used for a SD-card selection for read or write
 //for Genesis core VDNUM == 1
 wire sd_rd, sd_wr;
@@ -250,11 +250,11 @@ assign joy1_x = '0;
 //exHPS signal, menu index used to upload the file (8 bit). If it's LOW, then cart_download will be HIGH when ioctl_download is HIGH
 assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
-assign ioctl_wr = '1;
+//assign ioctl_wr = '1;
 //exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
 //ioctl_addr[24:1] used by sdram module as write address for sdram port0 when ROM uploads to RAM
 //ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
-assign ioctl_addr = 25'b0000000000000000000001111;
+//assign ioctl_addr = 25'b0000000000000000000001111;
 //exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
 //May be zero, but I set it to "J" region for future, when ROM loading will work
 assign ioctl_data = "JJ";
@@ -298,7 +298,7 @@ pll pll
 	.c0(clk_sys),
 	.c1(clk_ram),
 	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
-	.c3(dcoun_clk), //DEBUG
+	.c3(dcoun_clk), //SignalTap
 	.locked(locked)
 );
 
@@ -316,17 +316,17 @@ wire        gg_available;
 always_ff @(posedge clk_sys) begin
 	gg_code[128] <= 1'b0;
 
-	if (code_download & ioctl_wr) begin
-		case (ioctl_addr[3:0])
-			0:  gg_code[111:96]  <= ioctl_data; // Flags Bottom Word
-			2:  gg_code[127:112] <= ioctl_data; // Flags Top Word
-			4:  gg_code[79:64]   <= ioctl_data; // Address Bottom Word
-			6:  gg_code[95:80]   <= ioctl_data; // Address Top Word
-			8:  gg_code[47:32]   <= ioctl_data; // Compare Bottom Word
-			10: gg_code[63:48]   <= ioctl_data; // Compare top Word
-			12: gg_code[15:0]    <= ioctl_data; // Replace Bottom Word
+	if (code_download & orom_load_wr) begin
+		case (loadrom_addr[3:0])
+			0:  gg_code[111:96]  <= loadrom_wdata; // Flags Bottom Word
+			2:  gg_code[127:112] <= loadrom_wdata; // Flags Top Word
+			4:  gg_code[79:64]   <= loadrom_wdata; // Address Bottom Word
+			6:  gg_code[95:80]   <= loadrom_wdata; // Address Top Word
+			8:  gg_code[47:32]   <= loadrom_wdata; // Compare Bottom Word
+			10: gg_code[63:48]   <= loadrom_wdata; // Compare top Word
+			12: gg_code[15:0]    <= loadrom_wdata; // Replace Bottom Word
 			14: begin
-				gg_code[31:16]   <= ioctl_data; // Replace Top Word
+				gg_code[31:16]   <= loadrom_wdata; // Replace Top Word
 				gg_code[128]     <=  1'b1;      // Clock it in
 			end
 		endcase
@@ -375,7 +375,7 @@ system system
 	.SVP_QUIRK(svp_quirk),
 	.SCHAN_QUIRK(schan_quirk),
 
-	.GG_RESET(code_download && ioctl_wr && !ioctl_addr),
+	.GG_RESET(code_download && orom_load_wr && !loadrom_addr),
 	.GG_EN(status[24]),
 	.GG_CODE(gg_code),
 
@@ -660,15 +660,8 @@ lightgun lightgun
 
 ///////////////////////////////////////////////////
 //***********************************sdram module***********************************
-//debug
-wire dcoun_clk;
-//assign DRAM_CLK = clk_ram;
-dcounter dramclk_debug
-(
-	.clk(dcoun_clk),
-	.count(LEDR[17:10])
-);
-//debug
+//
+
 //DE2-115 ISSI IS42S16320D-7TL - 100MHz at CAS=2 or 143MHz at CAS=3.
 sdram sdram
 (	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
@@ -685,24 +678,16 @@ sdram sdram
 
 	.init(~locked),
 	.clk(clk_ram),
-/*
-	.addr0(ioctl_addr[24:1]),
-	.din0({ioctl_data[7:0],ioctl_data[15:8]}),
+
+	.addr0(loadrom_addr),
+	.din0({loadrom_wdata[7:0],loadrom_wdata[15:8]}),
 	.dout0(),
 	.wrl0(1),
 	.wrh0(1),
 	.req0(rom_wr),
 	.ack0(sdrom_wrack),
-*/
-	.addr0(loadrom_addr),
-	.din0(loadrom_wdata),
-	.dout0(),
-	.wrl0(loadrom_wrl),
-	.wrh0(loadrom_wrh),
-	.req0(loadrom_req),
-	.ack0(loadrom_ack),
 
-//work if same is flashtosdram_copier	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
+//if addr0 is sequential columns wrtitting use this	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
 	.addr1(rom_addr),
 	.din1(rom_wdata),
 	.dout1(sdrom_data),
@@ -725,14 +710,15 @@ sdram sdram
 wire	[23:1] fl_addr;
 wire	[15:0] fl_dout;
 wire			 fl_req, fl_ack;
-wire	[24:1] loadrom_addr;
+wire	[24:0] loadrom_addr;
 wire	[15:0] loadrom_wdata;
-wire			 loadrom_req, loadrom_ack, loadrom_wrl, loadrom_wrh, rom_loading;
+wire			 rom_loading, orom_load_wr, irom_load_wait;
+reg			 rom_load_wait;
 
 flash flash
 (
 	.iclk(clk_sys),
-	.ireset(reset),
+	.ireset(),
 
 	.iFL_DQ(FL_DQ),
 	.oFL_ADDR(FL_ADDR),
@@ -751,16 +737,15 @@ flash flash
 rom_loader rom_loader
 (
 	.iclk(clk_sys),
-	.ireset(reset),
+	.ireset(),
 
 	.oloading(rom_loading),
 	
 // SDRAM	
 	.oram_addr(loadrom_addr),
 	.oram_wrdata(loadrom_wdata),
-	.oram_req(loadrom_req),
-	.iram_ack(loadrom_ack),
-	.oram_Wrl(loadrom_wrl), .oram_Wrh(loadrom_wrh),
+	.orom_load_wr(orom_load_wr), //active high when addr and data are ready
+	.irom_load_wait(rom_load_wait), //ex-ioctl_wait, if high, then stop next word reading while other word is writting to SDRAM
 
 //Flash
 	.ofl_addr(fl_addr),
@@ -780,8 +765,7 @@ reg [24:0] rom_sz;
 assign rom_sz = 24'b000001000000000000000000;
 //1MB assign rom_sz = 24'b000010000000000000000000;
 //4MB assign rom_sz = 24'b001000000000000000000000;
-//Disabled while loading is not work
-/*
+
 reg  rom_wr = 0;
 wire sdrom_wrack;
 
@@ -790,14 +774,14 @@ always @(posedge clk_sys) begin
 	old_download <= cart_download;
 	old_reset <= reset;
 
-	if(~old_reset && reset) ioctl_wait <= 0;
-	if (old_download & ~cart_download) rom_sz <= ioctl_addr[24:0];
+	if(~old_reset && reset) rom_load_wait <= 0;
+//	if (old_download & ~cart_download) rom_sz <= loadrom_addr[24:0];
 
-	if (cart_download & ioctl_wr) begin
-		ioctl_wait <= 1;
+	if (cart_download & orom_load_wr) begin
+		rom_load_wait <= 1;
 		rom_wr <= ~rom_wr;
-	end else if(ioctl_wait && (rom_wr == sdrom_wrack)) begin
-		ioctl_wait <= 0;
+	end else if(rom_load_wait && (rom_wr == sdrom_wrack)) begin
+		rom_load_wait <= 0;
 	end
 end
 
@@ -810,22 +794,22 @@ always @(posedge clk_sys) begin
 	if(~old_download && cart_download) {hdr_j,hdr_u,hdr_e} <= 0;
 	if(old_download && ~cart_download) cart_hdr_ready <= 0;
 
-	if(ioctl_wr & cart_download) begin
-		if(ioctl_addr == 'h1F0 || ioctl_addr == 'h1F2) begin
-//Really need to compare ioctl_addr == 'h1F0 there^?
-			if(ioctl_data[7:0] == "J") hdr_j <= 1;
-			else if(ioctl_data[7:0] == "U") hdr_u <= 1;
-			else if(ioctl_data[7:0] >= "0" && ioctl_data[7:0] <= "Z") hdr_e <= 1;
+	if(orom_load_wr & cart_download) begin
+		if(loadrom_addr == 'h1F0 || loadrom_addr == 'h1F2) begin
+//?? Really need to check loadrom_addr == 'h1F0 ^there^?
+			if(loadrom_wdata[7:0] == "J") hdr_j <= 1;
+			else if(loadrom_wdata[7:0] == "U") hdr_u <= 1;
+			else if(loadrom_wdata[7:0] >= "0" && loadrom_wdata[7:0] <= "Z") hdr_e <= 1;
 		end
-		if(ioctl_addr == 'h1F0) begin
-			if(ioctl_data[15:8] == "J") hdr_j <= 1;
-			else if(ioctl_data[15:8] == "U") hdr_u <= 1;
-			else if(ioctl_data[15:8] >= "0" && ioctl_data[7:0] <= "Z") hdr_e <= 1;
+		if(loadrom_addr == 'h1F0) begin
+			if(loadrom_wdata[15:8] == "J") hdr_j <= 1;
+			else if(loadrom_wdata[15:8] == "U") hdr_u <= 1;
+			else if(loadrom_wdata[15:8] >= "0" && loadrom_wdata[7:0] <= "Z") hdr_e <= 1;
 		end
-		if(ioctl_addr == 'h200) cart_hdr_ready <= 1;
+		if(loadrom_addr == 'h200) cart_hdr_ready <= 1;
 	end
 end
-*/
+
 reg sram_quirk = 0;
 reg eeprom_quirk = 0;
 reg fifo_quirk = 0;
@@ -843,13 +827,13 @@ always @(posedge clk_sys) begin
 
 	if(~old_download && cart_download) {fifo_quirk,eeprom_quirk,sram_quirk,noram_quirk,pier_quirk,svp_quirk,fmbusy_quirk,schan_quirk} <= 0;
 
-	if(ioctl_wr & cart_download) begin
-		if(ioctl_addr == 'h182) cart_id[63:56] <= ioctl_data[15:8];
-		if(ioctl_addr == 'h184) cart_id[55:40] <= {ioctl_data[7:0],ioctl_data[15:8]};
-		if(ioctl_addr == 'h186) cart_id[39:24] <= {ioctl_data[7:0],ioctl_data[15:8]};
-		if(ioctl_addr == 'h188) cart_id[23:08] <= {ioctl_data[7:0],ioctl_data[15:8]};
-		if(ioctl_addr == 'h18A) cart_id[07:00] <= ioctl_data[7:0];
-		if(ioctl_addr == 'h18C) begin
+	if(orom_load_wr & cart_download) begin
+		if(loadrom_addr == 'h182) cart_id[63:56] <= loadrom_wdata[15:8];
+		if(loadrom_addr == 'h184) cart_id[55:40] <= {loadrom_wdata[7:0],loadrom_wdata[15:8]};
+		if(loadrom_addr == 'h186) cart_id[39:24] <= {loadrom_wdata[7:0],loadrom_wdata[15:8]};
+		if(loadrom_addr == 'h188) cart_id[23:08] <= {loadrom_wdata[7:0],loadrom_wdata[15:8]};
+		if(loadrom_addr == 'h18A) cart_id[07:00] <= loadrom_wdata[7:0];
+		if(loadrom_addr == 'h18C) begin
 			     if(cart_id == "T-081276") sram_quirk   <= 1; // NFL Quarterback Club
 			else if(cart_id == "T-81406 ") sram_quirk   <= 1; // NBA Jam TE
 			else if(cart_id == "T-081586") sram_quirk   <= 1; // NFL Quarterback Club '96
@@ -1105,21 +1089,4 @@ always @(posedge clk) begin
 	pol <= pos > neg;
 end
 
-endmodule
-
-//***********************************DEBUG modules***********************************
-module dcounter (
-	input wire       clk,
-	output reg [7:0] count
-);
-wire [31:0] counter;
-
-assign count = counter[31:24];
-	always @(posedge clk)
-		begin
-			if (&counter)
-				counter = 0;
-			else
-				counter = counter + 1;
-		end
 endmodule

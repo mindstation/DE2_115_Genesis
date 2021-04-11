@@ -36,7 +36,7 @@ reg	[3:0]	LUT_INDEX;
 reg	[1:0]	mSetup_ST;
 
 //	Clock Setting for OPLL frequences (49.6 KHz)
-parameter	CLK_Freq	=	27000000;	//	27	MHz
+parameter	CLK_Freq	=	53000000;	//	53	MHz
 parameter	I2C_Freq	=	100000;		//	100 (20) KHz
 //	LUT Data Number
 parameter	LUT_SIZE	=	11;
