@@ -27,12 +27,11 @@ module DE2_115_Genesis
 
 	// switch inputs
 	// SW[0] - RESET
-	// SW[3] - ROM download
-	// SW[17] - joystick_0_A, SW[16] - joystick_0_B, SW[15] - joystick_0_C, SW[14] - joystick_0_START
+	// SW[16] - joystick_0_A, SW[15] - joystick_0_B, SW[14] - joystick_0_C, SW[13] - joystick_0_START, SW[12] - joystick_0_Left too (like KEY[0])
    input  [17:0] SW, // Toggle Switch[17:0]
 
 	// button inputs
-	// KEY[0]  - joystick_0_Right, KEY[3] - joystick_0_Left, KEY[2] - joystick_0_Up, KEY[1] - joystick_0_Down
+	// KEY[0]  - joystick_0_Right and RESET (01052021), KEY[3] - joystick_0_Left, KEY[2] - joystick_0_Up, KEY[1] - joystick_0_Down
 	input   [3:0] KEY,
 	
 	output  [7:0] VGA_R,
@@ -233,8 +232,8 @@ assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_
 
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
-//RLDUABCS MXYZxxxx xxxxxxxx xxxxxxxx
-assign joystick_0 = {KEY[0],KEY[3],KEY[2],KEY[1], SW[17],SW[16],SW[15], SW[14], 4'b0, 20'b00000000000000000000};
+//xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
+assign joystick_0 = {20'b00000000000000000000, 4'b0, SW[13],SW[14],SW[15],SW[16],~KEY[1],~KEY[2],~KEY[3] | SW[12],~KEY[0]};
 assign joystick_1 = '0;
 assign joystick_2 = '0;
 assign joystick_3 = '0;
@@ -342,7 +341,7 @@ wire interlace;
 wire [1:0] resolution;
 
 //A global reset signal (active HIGHT)
-wire reset = SW[0];
+wire reset = SW[0] | ~KEY[3];
 
 wire [7:0] color_lut[16] = '{
 	8'd0,   8'd27,  8'd49,  8'd71,
@@ -611,9 +610,9 @@ vga_out vga_out
 	.din(vga_data_sl)
 );
 
-assign VGA_R  = vga_o[23:18];
-assign VGA_G  = vga_o[15:10];
-assign VGA_B  = vga_o[7:2];
+assign VGA_R  = {2'b11, vga_o[23:18]};
+assign VGA_G  = {2'b11, vga_o[15:10]};
+assign VGA_B  = {2'b11, vga_o[7:2]};
 
 //Disable Blank and sync at VGA out.
 assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
@@ -679,7 +678,7 @@ sdram sdram
 	.init(~locked),
 	.clk(clk_ram),
 
-	.addr0(loadrom_addr),
+	.addr0(loadrom_addr[24:1]),
 	.din0({loadrom_wdata[7:0],loadrom_wdata[15:8]}),
 	.dout0(),
 	.wrl0(1),
@@ -761,10 +760,14 @@ wire rom_req, sdrom_rdack, rom_we;
 
 reg [24:0] rom_sz;
 //sytem module, ROM size
-//512kB
-assign rom_sz = 24'b000001000000000000000000;
-//1MB assign rom_sz = 24'b000010000000000000000000;
-//4MB assign rom_sz = 24'b001000000000000000000000;
+//1104B hello.bin assign rom_sz = 24'b000000000000010001010000;
+//1000B psg_tone.bin assign rom_sz = 24'b000000000000001111101000;
+//1222B hello_z80.bin assign rom_sz = 24'b000000000000010011000110;
+//1628B gamepad.bin assign rom_sz = 24'b000000000000011001011100;
+//512kB assign rom_sz = 24'b000001000000000000000000;
+//1MB   assign rom_sz = 24'b000010000000000000000000;
+//4MB
+   assign rom_sz = 24'b001000000000000000000000;
 
 reg  rom_wr = 0;
 wire sdrom_wrack;

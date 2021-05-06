@@ -9,12 +9,12 @@ module rom_loader
 	input             irom_load_wait,
 	output reg			orom_load_wr,
 	output reg        oram_Wrl, oram_Wrh,
-	output	  [24:1] oram_addr,
+	output	  [24:0] oram_addr, //sdram uses only 24-bit address: [24:1]
 	output reg [15:0] oram_wrdata,
 	
 
 //Flash
-	output 		 [23:1] ofl_addr,
+	output 		 [22:0] ofl_addr,
 	input			 [15:0] ifl_data,
 	output reg			  ofl_req,
 	input					  ifl_ack
@@ -32,12 +32,11 @@ localparam INIT					= 3'd0,
 			  STOP					= 3'd7;
 
 reg [2:0]  fsm_state;
-reg [23:1] fl_addr_counter;
-reg [24:1] ram_addr_counter;
+reg [24:0] addr_counter;
 
 // oram_addr[24:23] is a bank number, oram_addr[13:1] is a row number, oram_addr[22:14] is a column number
-assign oram_addr = ram_addr_counter;
-assign ofl_addr = fl_addr_counter;
+assign oram_addr = addr_counter;
+assign ofl_addr = addr_counter[22:0];
 
 always @(posedge iclk)
 	begin
@@ -47,8 +46,7 @@ always @(posedge iclk)
 			case (fsm_state)
 				INIT:
 					begin
-						fl_addr_counter <= 23'd0;
-						ram_addr_counter <= 24'd0;
+						addr_counter <= 25'd0;
 						oloading <= 1'b1;
 						// If oWrl or oWrh is 1, then write SDRAM
 						{oram_Wrl,oram_Wrh} <= 2'b11;
@@ -78,10 +76,9 @@ always @(posedge iclk)
 					if (irom_load_wait == 1'b0)
 							fsm_state <= ADDR_INC;
 				ADDR_INC:
-					if (fl_addr_counter < FL_SIZE)
+					if (addr_counter < FL_SIZE)
 						begin
-							fl_addr_counter <= fl_addr_counter + 23'd2;
-							ram_addr_counter <= ram_addr_counter + 24'd1;
+							addr_counter <= addr_counter + 25'd2;
 							fsm_state <= FL_READ;
 						end
 					else
