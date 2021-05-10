@@ -610,9 +610,9 @@ vga_out vga_out
 	.din(vga_data_sl)
 );
 
-assign VGA_R  = {2'b11, vga_o[23:18]};
-assign VGA_G  = {2'b11, vga_o[15:10]};
-assign VGA_B  = {2'b11, vga_o[7:2]};
+assign VGA_R  = {vga_o[23:18], 2'b00};
+assign VGA_G  = {vga_o[15:10], 2'b00};
+assign VGA_B  = {vga_o[7:2], 2'b00};
 
 //Disable Blank and sync at VGA out.
 assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);

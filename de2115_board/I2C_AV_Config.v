@@ -48,7 +48,7 @@ parameter	SET_HEAD_L	=	3;
 parameter	SET_HEAD_R	=	4;
 parameter	A_PATH_CTRL	=	5;
 parameter	D_PATH_CTRL	=	6;
-parameter	POWER_ON	=	7;
+parameter	POWER_ON		=	7;
 parameter	SET_FORMAT	=	8;
 parameter	SAMPLE_CTRL	=	9;
 parameter	SET_ACTIVE	=	10;
@@ -128,13 +128,13 @@ begin
 	Dummy_DATA	:	LUT_DATA <= 16'h0000;
 	SET_LIN_L	:	LUT_DATA <= 16'h0017;	//R0 LINVOL = 17h (+0.0bB)
 	SET_LIN_R	:	LUT_DATA <= 16'h0217;	//R1 RINVOL = 17h (+0.0bB)
-	SET_HEAD_L	:	LUT_DATA <= 16'h047B;	//R2 LHPVOL = 7Ch (+3dB)
-	SET_HEAD_R	:	LUT_DATA <= 16'h067B;	//R3 RHPVOL = 7Ch (+3dB)
+	SET_HEAD_L	:	LUT_DATA <= 16'h0450;	//R2 LHPVOL = 50h (-41dB)
+	SET_HEAD_R	:	LUT_DATA <= 16'h0650;	//R3 RHPVOL = 50h (-41dB)
 	A_PATH_CTRL	:	LUT_DATA <= 16'h08D2;	//R4 DACSEL = 1
 	D_PATH_CTRL	:	LUT_DATA <= 16'h0A06;	//R5 DEEMP = 11 (48 KHz)
-	POWER_ON	:	LUT_DATA <= 16'h0C00;	//R6
+	POWER_ON		:	LUT_DATA <= 16'h0C00;	//R6
 	SET_FORMAT	:	LUT_DATA <= 16'h0E01;	//R7 FORMAT=01,16 bit
-	SAMPLE_CTRL	:	LUT_DATA <= 16'h103F;	//R8 99.2KHz,USB-mode
+	SAMPLE_CTRL	:	LUT_DATA <= 16'h1002;	//R8 48KHz,Normal mode
 	SET_ACTIVE	:	LUT_DATA <= 16'h1201;	//R9 ACTIVE
 	default		:	LUT_DATA <= 16'h0000;
 	endcase

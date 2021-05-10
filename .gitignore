@@ -1,9 +1,9 @@
 db
 greybox_tmp
 incremental_db
-output_files
-
 simulation
+
+output_files
 # but *.sof and *.jic is useful for FPGA loading
 !output_files/*.sof
 !output_files/*.jic
