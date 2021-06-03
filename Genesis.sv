@@ -20,79 +20,97 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
-module DE2_115_Genesis
+module emu
 (
 	//Master input clock
-	input         CLOCK_50,
+	input          CLK_50M,
+   input			   RESET,
 
-	// switch inputs
-	// SW[0] - RESET
-	// SW[16] - joystick_0_A, SW[15] - joystick_0_B, SW[14] - joystick_0_C, SW[13] - joystick_0_START, SW[12] - joystick_0_Left too (like KEY[0])
-   input  [17:0] SW, // Toggle Switch[17:0]
-
-	// button inputs
-	// KEY[0]  - joystick_0_Right and RESET (01052021), KEY[3] - joystick_0_Left, KEY[2] - joystick_0_Up, KEY[1] - joystick_0_Down
-	input   [3:0] KEY,
+	input	 [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,	
 	
-	output  [7:0] VGA_R,
-	output  [7:0] VGA_G,
-	output  [7:0] VGA_B,
-	output        VGA_HS,
-	output        VGA_VS,
-	output        VGA_CLK,
-	output        VGA_BLANK_N,
-	output        VGA_SYNC_N,
+	//Base video clock. Usually equals to CLK_SYS.
+	output         CLK_VIDEO,
 	
-	output [17:0] LEDR,
-	output  [8:0] LEDG,	
+	//Multiple resolutions are supported using different CE_PIXEL rates.
+	//Must be based on CLK_VIDEO
+	output         CE_PIXEL,
+	
+	output  [7:0]  VGA_R,
+	output  [7:0]  VGA_G,
+	output  [7:0]  VGA_B,
+	output         VGA_HS,
+	output         VGA_VS,
+	output         VGA_DE,    // = ~(VBlank | HBlank)
+	output         VGA_F1,
+	output  [1:0]  VGA_SL,
+	
+	output        LED_USER,  // 1 - ON, 0 - OFF.
+	
+	// b[1]: 0 - LED status is system status OR'd with b[0]
+	//       1 - LED status is controled solely by b[0]
+	// hint: supply 2'b00 to let the system control the LED.
+	output  [1:0]  LED_POWER,
+	output  [1:0]  LED_DISK,
 
-	// I2C for Audio codec configuration
-	output        I2C_SCLK,
-	inout         I2C_SDAT,
-	// I2S for Audio codec bit stream
-	inout         AUD_BCLK,
-	output        AUD_DACDAT,
-	inout         AUD_DACLRCK,
-	output        AUD_XCK,
+	output [15:0]  AUDIO_L,
+	output [15:0]  AUDIO_R,
+	output         AUDIO_S,
+	output  [1:0]  AUDIO_MIX,
+
+	// Audio codec base clock
+	output         AUD_XCK,
 
 	// SDRAM interface with lower latency
-	output        DRAM_CLK,
-	output        DRAM_CKE,
-	output [12:0] DRAM_ADDR,
-	output  [1:0] DRAM_BA,
-	inout  [15:0] DRAM_DQ,
-	output  [1:0] DRAM_DQM,
-	output        DRAM_CS_N,
-	output        DRAM_CAS_N,
-	output        DRAM_RAS_N,
-	output        DRAM_WE_N,
+	output         SDRAM_CLK,
+	output         SDRAM_CKE,
+	output [12:0]  SDRAM_A,
+	output  [1:0]  SDRAM_BA,
+	inout  [15:0]  SDRAM_DQ,
+	output         SDRAM_DQML,
+	output         SDRAM_DQMH,
+	output         SDRAM_nCS,
+	output         SDRAM_nCAS,
+	output         SDRAM_nRAS,
+	output         SDRAM_nWE,
 	
-	// [35:30] Open-drain User port (MiSTER SERJOYSTICK).
-	inout [35:29] GPIO,
+	input         UART_CTS,
+	output        UART_RTS,
+	input         UART_RXD,
+	output        UART_TXD,
+	output        UART_DTR,
+	input         UART_DSR,
+	
+	// Open-drain User port.
+	// 0 - D+/RX
+	// 1 - D-/TX
+	// 2..6 - USR2..USR6
+	// Set USER_OUT to 1 to read from USER_IN.
+	input   [6:0] USER_IN,
+	output  [6:0] USER_OUT,	
 	
 	// FLASH interface
-	output		  FL_RST_N,
-	output		  FL_CE_N,
-	output		  FL_OE_N,
-	output		  FL_WE_N,
-	output		  FL_WP_N,
-	output [22:0] FL_ADDR,
-	input  [7:0]  FL_DQ
+	input    [7:0] FL_DQ,
+	output  [22:0] FL_ADDR,
+	output         FL_RST_N,
+	output         FL_CE_N,
+	output         FL_OE_N,
+	output         FL_WE_N,
+	output         FL_WP_N
 );
+
+assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+
+// 1 - signed audio samples, 0 - unsigned
+assign AUDIO_S = 1;
+// 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
+assign AUDIO_MIX = 0;
 
 // b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
 	// hint: supply 2'b00 to let the system control the LED.
-wire  [1:0] led_power, led_disk;
-wire        led_user;
-
-assign led_disk  = 0;
-assign led_power = 0;
-assign led_user  = cart_download;
-
-assign LEDG[0] = led_disk[1] ? led_disk[0] : 1'b0;
-assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
-assign LEDR[0] = led_user;
+assign LED_DISK  = 0;
+assign LED_POWER = 0;
+assign LED_USER  = cart_download;
 
 // Status Bit Map:
 //             Upper                             Lower              
@@ -230,14 +248,11 @@ assign gamma_bus[7:0] = '0;
 //                 63               47                         31                         15                        0
 assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_001_0;
 
-//exHSP, joystick bitmap (used only 11 bit from 32)
-//0      7 8      15       23       31
-//xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
-assign joystick_0 = {20'b00000000000000000000, 4'b0, SW[13],SW[14],SW[15],SW[16],~KEY[1],~KEY[2],~KEY[3] | SW[12],~KEY[0]};
-assign joystick_1 = '0;
-assign joystick_2 = '0;
-assign joystick_3 = '0;
-assign joystick_4 = '0;
+assign joystick_0 = JOY_0;
+assign joystick_1 = JOY_1;
+assign joystick_2 = JOY_2;
+assign joystick_3 = JOY_3;
+assign joystick_4 = JOY_4;
 
 //exHSP, joystick_analog (8 bit) for lightgun - not used
 assign joy0_y = '0;
@@ -293,11 +308,11 @@ wire clk_sys, clk_ram, locked;
 
 pll pll
 (
-	.inclk0(CLOCK_50),
+	.inclk0(CLK_50M),
 	.c0(clk_sys),
 	.c1(clk_ram),
 	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
-	.c3(dcoun_clk), //SignalTap
+	.c3(), //SignalTap
 	.locked(locked)
 );
 
@@ -341,7 +356,7 @@ wire interlace;
 wire [1:0] resolution;
 
 //A global reset signal (active HIGHT)
-wire reset = SW[0] | ~KEY[3];
+wire reset = RESET;
 
 wire [7:0] color_lut[16] = '{
 	8'd0,   8'd27,  8'd49,  8'd71,
@@ -420,8 +435,8 @@ system system
 //	.ROM_ACK2(),
 
 //OUTPUTS
-	.DAC_LDATA(audio_ls),
-	.DAC_RDATA(audio_rs),
+	.DAC_LDATA(AUDIO_L),
+	.DAC_RDATA(AUDIO_R),
 
 	.RED(r),
 	.GREEN(g),
@@ -431,8 +446,8 @@ system system
 	.HBL(hblank),
 	.VBL(vblank),
 	.CE_PIX(ce_pix),
-//input for HPS. Not used.
-//	.FIELD(VGA_F1),
+//input for HPS. sus_top/vga_hs_osd. Not used.
+	.FIELD(VGA_F1),
 	.INTERLACE(interlace),
 	.RESOLUTION(resolution),
 
@@ -507,9 +522,17 @@ always @(posedge clk_sys) begin
 	if(old_vbl & ~vblank) res <= resolution;
 end
 
+wire [2:0] scale = status[3:1];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+
+assign CLK_VIDEO = clk_ram;
+assign VGA_SL = {~interlace,~interlace}&sl[1:0];
+
 //***********************************Composite-like horizontal blending***********************************
+reg old_ce_pix;
+always @(posedge CLK_VIDEO) old_ce_pix <= ce_pix;
+
 wire [7:0] red, green, blue;
-wire hs_c,vs_c,hblank_c,vblank_c;
 
 cofi coffee (
 	.clk(clk_sys),
@@ -533,28 +556,22 @@ cofi coffee (
 	.blue_out(blue)
 );
 
+wire hs_c, vs_c, hblank_c, vblank_c;
+
 //***********************************gamma, scandoubler, scanlines***********************************
-wire ovmix_vs, ovmix_hs, ovmix_de, CE_PIXEL;
-wire clk_vid = clk_ram;
-wire [7:0] ovmix_r, ovmix_g, ovmix_b;
-
-assign VGA_CLK = clk_vid; 
-
-reg old_ce_pix;
-always @(posedge clk_vid) old_ce_pix <= ce_pix;
 
 video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
-	.VGA_R(ovmix_r),
-	.VGA_G(ovmix_g),
-	.VGA_B(ovmix_b),
-	.VGA_VS(ovmix_vs),
-	.VGA_HS(ovmix_hs),
-	.VGA_DE(ovmix_de),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_VS(VGA_VS),
+	.VGA_HS(VGA_HS),
+	.VGA_DE(VGA_DE),
 
 	.gamma_bus(gamma_bus),
 
-	.clk_vid(clk_vid),
+	.clk_vid(CLK_VIDEO),
 	.ce_pix(~old_ce_pix & ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
@@ -574,49 +591,6 @@ video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.HBlank(hblank_c),
 	.VBlank(vblank_c)
 );
-
-//scanlines
-wire [2:0] scale = status[3:1];
-wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
-wire [2:0] scanlines = {~interlace,~interlace}&sl[1:0];
-
-wire [23:0] vga_data_sl;
-wire vs_fix, hs_fix;
-wire        vga_de_sl, vga_vs_sl, vga_hs_sl;
-scanlines #(0) VGA_scanlines
-(
-	.clk(clk_vid),
-
-	.scanlines(scanlines),
-	.din(ovmix_de ? {ovmix_r, ovmix_g, ovmix_b} : 24'd0),
-	.hs_in(hs_fix),
-	.vs_in(vs_fix),
-	.de_in(ovmix_de),
-
-	.dout(vga_data_sl),
-	.hs_out(VGA_HS), //Or VGA_HS = ~hs_out like MiSTER/sys_top.v(1080)?
-	.vs_out(VGA_VS)  //Or VGA_VS = ~vs_out like MiSTER/sys_top.v(1079)?
-);
-
-sync_fix sync_v(clk_vid, ovmix_vs, vs_fix);
-sync_fix sync_h(clk_vid, ovmix_hs, hs_fix);
-
-wire [23:0] vga_o;
-vga_out vga_out
-(
-	.ypbpr_full(0),
-	.ypbpr_en(0),
-	.dout(vga_o),
-	.din(vga_data_sl)
-);
-
-assign VGA_R  = {vga_o[23:18], 2'b00};
-assign VGA_G  = {vga_o[15:10], 2'b00};
-assign VGA_B  = {vga_o[7:2], 2'b00};
-
-//Disable Blank and sync at VGA out.
-assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
-assign VGA_SYNC_N = 0;
 
 //***********************************lightgun emulation by mouse or joypad***********************************
 wire [2:0] lg_target;
@@ -663,17 +637,17 @@ lightgun lightgun
 
 //DE2-115 ISSI IS42S16320D-7TL - 100MHz at CAS=2 or 143MHz at CAS=3.
 sdram sdram
-(	.SDRAM_DQ(DRAM_DQ),   // 16 bit bidirectional data bus
-	.SDRAM_A(DRAM_ADDR),    // 13 bit multiplexed address bus
-	.SDRAM_DQML(DRAM_DQM[0]), // byte mask
-	.SDRAM_DQMH(DRAM_DQM[1]), // byte mask
-	.SDRAM_BA(DRAM_BA),   // two banks
-	.SDRAM_nCS(DRAM_CS_N),  // a single chip select
-	.SDRAM_nWE(DRAM_WE_N),  // write enable
-	.SDRAM_nRAS(DRAM_RAS_N), // row address select
-	.SDRAM_nCAS(DRAM_CAS_N), // columns address select
-	.SDRAM_CLK(DRAM_CLK),
-	.SDRAM_CKE(DRAM_CKE),
+(	.SDRAM_DQ(SDRAM_DQ),   // 16 bit bidirectional data bus
+	.SDRAM_A(SDRAM_A),    // 13 bit multiplexed address bus
+	.SDRAM_DQML(SDRAM_DQML), // byte mask
+	.SDRAM_DQMH(SDRAM_DQMH), // byte mask
+	.SDRAM_BA(SDRAM_BA),   // two banks
+	.SDRAM_nCS(SDRAM_nCS),  // a single chip select
+	.SDRAM_nWE(SDRAM_nWE),  // write enable
+	.SDRAM_nRAS(SDRAM_nRAS), // row address select
+	.SDRAM_nCAS(SDRAM_nCAS), // columns address select
+	.SDRAM_CLK(SDRAM_CLK),
+	.SDRAM_CKE(SDRAM_CKE),
 
 	.init(~locked),
 	.clk(clk_ram),
@@ -704,34 +678,20 @@ sdram sdram
 	.ack2()
 );
 
+wire [24:1] rom_addr;
+wire [15:0] sdrom_data, rom_wdata;
+wire  [1:0] rom_be;
+wire rom_req, sdrom_rdack, rom_we;
+
 ///////////////////////////////////////////////////
-//***********************************ROM loader***********************************
-wire	[23:1] fl_addr;
-wire	[15:0] fl_dout;
-wire			 fl_req, fl_ack;
+//***********************************ROM loading***********************************
 wire	[24:0] loadrom_addr;
 wire	[15:0] loadrom_wdata;
 wire			 rom_loading, orom_load_wr, irom_load_wait;
 reg			 rom_load_wait;
-
-flash flash
-(
-	.iclk(clk_sys),
-	.ireset(),
-
-	.iFL_DQ(FL_DQ),
-	.oFL_ADDR(FL_ADDR),
-	.oFL_RST_N(FL_RST_N),
-	.oFL_CE_N(FL_CE_N),
-	.oFL_OE_N(FL_OE_N),
-	.oFL_WE_N(FL_WE_N),
-	.oFL_WP_N(FL_WP_N), // write protection is disabled (set to 1)
-	
-	.ifl_addr(fl_addr),
-	.ofl_dout(fl_dout),
-	.ifl_req(fl_req),
-	.ofl_ack(fl_ack)
-);
+wire	[23:1] fl_addr;
+wire	[15:0] fl_dout;
+wire         fl_req, fl_ack;
 
 rom_loader rom_loader
 (
@@ -753,11 +713,27 @@ rom_loader rom_loader
 	.ifl_ack(fl_ack)
 );
 
-wire [24:1] rom_addr;
-wire [15:0] sdrom_data, rom_wdata;
-wire  [1:0] rom_be;
-wire rom_req, sdrom_rdack, rom_we;
+flash flash
+(
+	.iclk(clk_sys),
+	.ireset(),
 
+	.iFL_DQ(FL_DQ),
+	.oFL_ADDR(FL_ADDR),
+	.oFL_RST_N(FL_RST_N),
+	.oFL_CE_N(FL_CE_N),
+	.oFL_OE_N(FL_OE_N),
+	.oFL_WE_N(FL_WE_N),
+	.oFL_WP_N(FL_WP_N), // write protection is disabled (set to 1)
+	
+	.ifl_addr(fl_addr),
+	.ofl_dout(fl_dout),
+	.ifl_req(fl_req),
+	.ofl_ack(fl_ack)
+);
+
+reg  rom_wr = 0;
+wire sdrom_wrack;
 reg [24:0] rom_sz;
 //sytem module, ROM size
 //1104B hello.bin assign rom_sz = 24'b000000000000010001010000;
@@ -768,10 +744,6 @@ reg [24:0] rom_sz;
 //1MB   assign rom_sz = 24'b000010000000000000000000;
 //4MB
    assign rom_sz = 24'b001000000000000000000000;
-
-reg  rom_wr = 0;
-wire sdrom_wrack;
-
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 	old_download <= cart_download;
@@ -895,201 +867,33 @@ end
 //No SD support. SAVE/LOAD for SD cart removed.
 
 ////////////////  MiSTER SERJOYSTICK /////////////////////////
-assign GPIO = user_io;
-
-// 0 - D+/RX
-// 1 - D-/TX
-// 2..6 - USR2..USR6
-// Set user_out to 1 to read from user_in.
-wire [6:0] user_out, user_in, user_io;
-
-assign user_io[0] = !user_out[0] ? 1'b0 : 1'bZ;
-assign user_io[1] = !user_out[1] ? 1'b0 : 1'bZ;
-assign user_io[2] = !user_out[2] ? 1'b0 : 1'bZ;
-assign user_io[3] = !user_out[3] ? 1'b0 : 1'bZ;
-assign user_io[4] = !user_out[4] ? 1'b0 : 1'bZ;
-assign user_io[5] = !user_out[5] ? 1'b0 : 1'bZ;
-assign user_io[6] = !user_out[6] ? 1'b0 : 1'bZ;
-
-assign user_in[0] = user_io[0];
-assign user_in[1] = user_io[1];
-assign user_in[2] = user_io[2];
-assign user_in[3] = user_io[3];
-assign user_in[4] = user_io[4];
-assign user_in[5] = user_io[5];
-assign user_in[6] = user_io[6];
-
 wire [7:0] SERJOYSTICK_IN;
 wire [7:0] SERJOYSTICK_OUT;
 wire [1:0] SER_OPT;
 
 always @(posedge clk_sys) begin
 	if (status[45]) begin
-		SERJOYSTICK_IN[0] <= user_in[1];//up
-		SERJOYSTICK_IN[1] <= user_in[0];//down
-		SERJOYSTICK_IN[2] <= user_in[5];//left
-		SERJOYSTICK_IN[3] <= user_in[3];//right
-		SERJOYSTICK_IN[4] <= user_in[2];//b TL
-		SERJOYSTICK_IN[5] <= user_in[6];//c TR GPIO7
-		SERJOYSTICK_IN[6] <= user_in[4];//  TH
+		SERJOYSTICK_IN[0] <= USER_IN[1];//up
+		SERJOYSTICK_IN[1] <= USER_IN[0];//down
+		SERJOYSTICK_IN[2] <= USER_IN[5];//left
+		SERJOYSTICK_IN[3] <= USER_IN[3];//right
+		SERJOYSTICK_IN[4] <= USER_IN[2];//b TL
+		SERJOYSTICK_IN[5] <= USER_IN[6];//c TR GPIO7
+		SERJOYSTICK_IN[6] <= USER_IN[4];//  TH
 		SERJOYSTICK_IN[7] <= 0;
 		SER_OPT[0] <= status[4];
 		SER_OPT[1] <= ~status[4];
-		user_out[1] <= SERJOYSTICK_OUT[0];
-		user_out[0] <= SERJOYSTICK_OUT[1];
-		user_out[5] <= SERJOYSTICK_OUT[2];
-		user_out[3] <= SERJOYSTICK_OUT[3];
-		user_out[2] <= SERJOYSTICK_OUT[4];
-		user_out[6] <= SERJOYSTICK_OUT[5];
-		user_out[4] <= SERJOYSTICK_OUT[6];
+		USER_OUT[1] <= SERJOYSTICK_OUT[0];
+		USER_OUT[0] <= SERJOYSTICK_OUT[1];
+		USER_OUT[5] <= SERJOYSTICK_OUT[2];
+		USER_OUT[3] <= SERJOYSTICK_OUT[3];
+		USER_OUT[2] <= SERJOYSTICK_OUT[4];
+		USER_OUT[6] <= SERJOYSTICK_OUT[5];
+		USER_OUT[4] <= SERJOYSTICK_OUT[6];
 	end else begin
 		SER_OPT  <= 0;
-		user_out <= '1;
+		USER_OUT <= '1;
 	end
-end
-
-//********************************Audio**************************************
-// Codec DE2-115 configuration by I2C
-I2C_AV_Config  i2c_con
-(
-//      Host Side
-.iCLK(clk_sys),
-.iRST_N(reset),
-//      I2C Side
-.oI2C_SCLK(I2C_SCLK),
-.oI2C_SDAT(I2C_SDAT)
-);
-
-// Digital audio mixing
-wire        clk_audio = clk_sys;
-wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
-wire [1:0]  audio_mix = 0; // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-wire        audio_s = 1;
-wire [15:0] audio_ls, audio_rs;
-wire [15:0] alsa_l = 0, alsa_r = 0;
-
-wire [15:0] audio_l, audio_l_pre;
-aud_mix_top audmix_l
-(
-	.clk(clk_audio),
-	.att(vol_att),
-	.mix(audio_mix),
-	.is_signed(audio_s),
-
-	.core_audio(audio_ls),
-	.pre_in(audio_r_pre),
-	.linux_audio(alsa_l),
-
-	.pre_out(audio_l_pre),
-	.out(audio_l)
-);
-
-wire [15:0] audio_r, audio_r_pre;
-aud_mix_top audmix_r
-(
-	.clk(clk_audio),
-	.att(vol_att),
-	.mix(audio_mix),
-	.is_signed(audio_s),
-
-	.core_audio(audio_rs),
-	.pre_in(audio_l_pre),
-	.linux_audio(alsa_r),
-
-	.pre_out(audio_r_pre),
-	.out(audio_r)
-);
-
-wire spdif;
-audio_out audio_out
-(
-	.reset(reset),
-	.clk(clk_audio),
-	.sample_rate(0), //0 - 48KHz, 1 - 96KHz
-	.left_in(audio_l),
-	.right_in(audio_r),
-	.i2s_bclk(AUD_BCLK),
-	.i2s_lrclk(AUD_DACLRCK),
-	.i2s_data(AUD_DACDAT)
-);
-endmodule
-
-//***********************************digital audio mixer module***********************************
-module aud_mix_top
-(
-	input             clk,
-
-	input       [4:0] att,
-	input       [1:0] mix,
-	input             is_signed,
-
-	input      [15:0] core_audio,
-	input      [15:0] linux_audio,
-	input      [15:0] pre_in,
-
-	output reg [15:0] pre_out,
-	output reg [15:0] out
-);
-
-reg [15:0] ca;
-always @(posedge clk) begin
-	reg [15:0] d1,d2,d3;
-
-	d1 <= core_audio; d2<=d1; d3<=d2;
-	if(d2 == d3) ca <= d2;
-end
-
-always @(posedge clk) begin
-	reg signed [16:0] a1, a2, a3, a4;
-
-	a1 <= is_signed ? {ca[15],ca} : {2'b00,ca[15:1]};
-	a2 <= a1 + {linux_audio[15],linux_audio};
-
-	pre_out <= a2[16:1];
-
-	case(mix)
-		0: a3 <= a2;
-		1: a3 <= $signed(a2) - $signed(a2[16:3]) + $signed(pre_in[15:2]);
-		2: a3 <= $signed(a2) - $signed(a2[16:2]) + $signed(pre_in[15:1]);
-		3: a3 <= {a2[16],a2[16:1]} + {pre_in[15],pre_in};
-	endcase
-
-	if(att[4]) a4 <= 0;
-	else a4 <= a3 >>> att[3:0];
-
-	//clamping
-	out <= ^a4[16:15] ? {a4[16],{15{a4[15]}}} : a4[15:0];
-end
-
-endmodule
-
-//***********************************video h/v sync fix module***********************************
-
-module sync_fix
-(
-	input clk,
-	
-	input sync_in,
-	output sync_out
-);
-
-assign sync_out = sync_in ^ pol;
-
-reg pol;
-always @(posedge clk) begin
-	integer pos = 0, neg = 0, cnt = 0;
-	reg s1,s2;
-
-	s1 <= sync_in;
-	s2 <= s1;
-
-	if(~s2 & s1) neg <= cnt;
-	if(s2 & ~s1) pos <= cnt;
-
-	cnt <= cnt + 1;
-	if(s2 != s1) cnt <= 0;
-
-	pol <= pos > neg;
 end
 
 endmodule

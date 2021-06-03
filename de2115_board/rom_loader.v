@@ -22,14 +22,14 @@ module rom_loader
 
 localparam FL_SIZE		= 23'b1111111_11111111_11111110; // DE2-115 has 8MB Flash, word aligned address
 
-localparam INIT					= 3'd0,
-			  FL_READ				= 3'd1,
-			  FL_ACK_WAIT			= 3'd2,
-			  RAM_WRITE_READY		= 3'd3,
-			  RAM_WRITE				= 3'd4,
-			  RAM_WRITE_WAIT		= 3'd5,
-			  ADDR_INC				= 3'd6,
-			  STOP					= 3'd7;
+localparam INIT					= 3'b000,
+			  FL_READ				= 3'b001,
+			  FL_ACK_WAIT			= 3'b010,
+			  RAM_WRITE_READY		= 3'b011,
+			  RAM_WRITE				= 3'b100,
+			  RAM_WRITE_WAIT		= 3'b101,
+			  ADDR_INC				= 3'b110,
+			  STOP					= 3'b111;
 
 reg [2:0]  fsm_state;
 reg [24:0] addr_counter;
