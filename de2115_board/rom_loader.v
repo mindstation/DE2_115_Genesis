@@ -8,7 +8,6 @@ module rom_loader
 // SDRAM	
 	input             irom_load_wait,
 	output reg			orom_load_wr,
-	output reg        oram_Wrl, oram_Wrh,
 	output	  [24:0] oram_addr, //sdram uses only 24-bit address: [24:1]
 	output reg [15:0] oram_wrdata,
 	
@@ -48,8 +47,6 @@ always @(posedge iclk)
 					begin
 						addr_counter <= 25'd0;
 						oloading <= 1'b1;
-						// If oWrl or oWrh is 1, then write SDRAM
-						{oram_Wrl,oram_Wrh} <= 2'b11;
 						
 						fsm_state <= FL_READ;
 					end
@@ -84,10 +81,7 @@ always @(posedge iclk)
 					else
 						fsm_state <= STOP;
 				STOP:
-					begin
-						{oram_Wrl,oram_Wrh} <= 2'b00;
-						oloading <= 1'b0;
-					end
+					oloading <= 1'b0;
 				default:
 					fsm_state <= INIT;
 			endcase;

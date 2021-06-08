@@ -21,6 +21,10 @@ module sys_top
 	output        VGA_BLANK_N,
 	output        VGA_SYNC_N,
 	
+	/////////// AUDIO //////////
+	output		  AUDIO_L, //AUDIO_L, analog connecting through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
+	output		  AUDIO_R, //AUDIO_R, analog connecting through RC-filter
+	
 	output  [1:0] LEDR, //LEDR[0] = led_user
 	output  [1:0] LEDG,
 
@@ -28,9 +32,9 @@ module sys_top
 	output        I2C_SCLK,
 	inout         I2C_SDAT,
 	// I2S for Audio codec bit stream
-	inout         AUD_BCLK,
+	output        AUD_BCLK,
 	output        AUD_DACDAT,
-	inout         AUD_DACLRCK,
+	output        AUD_DACLRCK,
 	output        AUD_XCK,
 
 	// SDRAM interface
@@ -45,7 +49,7 @@ module sys_top
 	output        DRAM_RAS_N,
 	output        DRAM_WE_N,
 
-	///////// USER IO ///////////	
+	///////// USER IO ///////////
 	inout [35:29] GPIO,
 	
 	// FLASH interface
@@ -100,21 +104,21 @@ scanlines #(0) VGA_scanlines
 wire [23:0] vga_o;
 vga_out vga_out
 (
-	.ypbpr_full(0),
-	.ypbpr_en(0),
+	.ypbpr_full(1'b0),
+	.ypbpr_en(1'b0),
 	.dout(vga_o),
 	.din(vga_data_sl)
 );
 
-assign VGA_R  = {vga_o[23:18], 2'b00}; //Try 23:16
-assign VGA_G  = {vga_o[15:10], 2'b00}; //15:8
-assign VGA_B  = {vga_o[7:2], 2'b00};   //7:0 ?
-
-assign VGA_CLK = clk_vid;
+assign VGA_R  = vga_o[23:16];
+assign VGA_G  = vga_o[15:8];
+assign VGA_B  = vga_o[7:0];
 
 //Disable Blank and sync at VGA out.
 assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
 assign VGA_SYNC_N = 0;
+
+assign VGA_CLK = clk_vid;
 
 ////////////////  User I/O  /////////////////////////
 // Open-drain User port (MiSTER SERJOYSTICK).
@@ -215,7 +219,7 @@ emu emu
 );
 
 //********************************Audio**************************************
-// Codec DE2-115 configuration by I2C
+// Codec DE2-115 configuring by I2C
 I2C_AV_Config  i2c_con
 (
 //      Host Side
@@ -263,17 +267,19 @@ aud_mix_top audmix_r
 	.out(audio_r)
 );
 
-wire spdif;
 audio_out audio_out
 (
 	.reset(reset),
 	.clk(clk_audio),
-	.sample_rate(0), //0 - 48KHz, 1 - 96KHz
+	.sample_rate(1'b0), //0 - 48KHz, 1 - 96KHz
 	.left_in(audio_l),
 	.right_in(audio_r),
 	.i2s_bclk(AUD_BCLK),
 	.i2s_lrclk(AUD_DACLRCK),
-	.i2s_data(AUD_DACDAT)
+	.i2s_data(AUD_DACDAT),
+	
+	.dac_l(AUDIO_L),
+	.dac_r(AUDIO_R)
 );
 
 endmodule

@@ -238,9 +238,7 @@ set_location_assignment PIN_AE16 -to GPIO[7]
 set_location_assignment PIN_AD21 -to GPIO[6]
 set_location_assignment PIN_Y16 -to GPIO[5]
 set_location_assignment PIN_AC21 -to GPIO[4]
-set_location_assignment PIN_Y17 -to GPIO[3]
 set_location_assignment PIN_AB21 -to GPIO[2]
-set_location_assignment PIN_AC15 -to GPIO[1]
 set_location_assignment PIN_AB22 -to GPIO[0]
 set_location_assignment PIN_H22 -to HEX0[6]
 set_location_assignment PIN_J22 -to HEX0[5]
@@ -644,9 +642,6 @@ set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[31] -t
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[32] -to DRAM_DQ[9] -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[33] -to DRAM_RAS_N -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[34] -to DRAM_WE_N -section_id auto_signaltap_0
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
-set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
-set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_ADCDAT
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_ADCLRCK
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_BCLK
@@ -836,9 +831,7 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[6]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[3]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[0]
 set_instance_assignment -name IO_STANDARD "2.5 V" -to HEX0[6]
 set_instance_assignment -name IO_STANDARD "2.5 V" -to HEX0[5]
@@ -1426,5 +1419,12 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[28] -
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[29] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[30] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[31] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_location_assignment PIN_Y17 -to AUDIO_R
+set_location_assignment PIN_AC15 -to AUDIO_L
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUDIO_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to AUDIO_*
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 set_global_assignment -name SLD_FILE db/DE2115_signaltap_dbgConfstp_auto_stripped.stp

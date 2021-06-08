@@ -81,9 +81,6 @@ module emu
 	input         UART_DSR,
 	
 	// Open-drain User port.
-	// 0 - D+/RX
-	// 1 - D-/TX
-	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
 	input   [6:0] USER_IN,
 	output  [6:0] USER_OUT,	
@@ -98,7 +95,7 @@ module emu
 	output         FL_WP_N
 );
 
-assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+assign {UART_RTS, UART_TXD, UART_DTR} = 'b0;
 
 // 1 - signed audio samples, 0 - unsigned
 assign AUDIO_S = 1;
@@ -208,9 +205,9 @@ assign gamma_bus[19] = 1'b0;
 assign gamma_bus[18] = 1'b0;
 //gamma_bus[17:8] (gamma_wr_addr) video_mixer/gamma_corr is a component address of gamma_curve (r if gamma_bus[17:16] == 2'b00,g if gamma_bus[17:16] == 2'b01 or b if gamma_bus[17:16] == 2'b10)
 //don't care because the GAMMA parameter is low
-assign gamma_bus[17:8] = '0;
+assign gamma_bus[17:8] = 10'b0;
 //gamma_bus[7:0] (gamma_value) video_mixer/gamma_corr is data source for gamma_curve or gamma_curve rgb
-assign gamma_bus[7:0] = '0;
+assign gamma_bus[7:0] = 8'b0;
 
 //exHSP, status is a 64-bit parameter
 //status[0] is reset (active HIGH)
@@ -423,6 +420,10 @@ system system
 
 	.OBJ_LIMIT_HIGH(status[31]),
 
+	.BRAM_A('b0),
+	.BRAM_DI('b0),
+	.BRAM_WE('b0),
+	
 	.ROMSZ(rom_sz[24:1]),
 //	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
 //Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system/SVP module
@@ -575,11 +576,11 @@ video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.ce_pix(~old_ce_pix & ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines(0),
+	.scanlines(2'b0),
 	.scandoubler(~interlace && scale),
 	.hq2x(scale==1),
 
-	.mono(0),
+	.mono(1'b0),
 
 	.R((lg_target && gun_mode && (~&status[44:43])) ? {8{lg_target[0]}} : red),
 	.G((lg_target && gun_mode && (~&status[44:43])) ? {8{lg_target[1]}} : green),

@@ -439,7 +439,7 @@ vdp vdp
 	.BGACK_N(VBUS_BGACK_N),
 
 	.VRAM_SPEED(~(FAST_FIFO|TURBO)),
-	.VSCROLL_BUG(0),
+	.VSCROLL_BUG(1'b0),
 	.BORDER_EN(BORDER),
 	.SVP_QUIRK(SVP_QUIRK),
 	.OBJ_LIMIT_HIGH_EN(OBJ_LIMIT_HIGH),
@@ -631,6 +631,7 @@ always_comb begin
 	end
 end
 
+// address_a	Input	Critical Warning	Can't connect array with 16 elements in array dimension 1 to port with 17 elements in the same dimension
 dpram_dif #(17,8,16,16) sram
 (
 	.clock(MCLK),
