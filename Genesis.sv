@@ -172,7 +172,7 @@ localparam CONF_STR = {
 wire [21:0] gamma_bus;
 
 //exHPS OUTPUTS
-wire [63:0] status;
+reg  [63:0] status;
 wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 
@@ -242,8 +242,10 @@ assign gamma_bus[7:0] = 8'b0;
 //status[46]=1 cofi_enable, active HIGH
 //status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
 //status[63:48] loopback to HPS_BUS. Ignore {status[63:48], status[34], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
-//                 63               47                         31                         15                        0
-assign status = 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_001_0;
+
+always @(posedge clk_sys)
+//           63               47                         31                         15                        0
+status <= 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_001_0;
 
 assign joystick_0 = JOY_0;
 assign joystick_1 = JOY_1;
@@ -425,15 +427,12 @@ system system
 	.BRAM_WE('b0),
 	
 	.ROMSZ(rom_sz[24:1]),
-//	.ROM_DATA(use_sdr ? sdrom_data : ddrom_data),
-//Does Genesis MiSTer work without SDRAM? SDRAM seems to be the sole source of ROM. rom_data2 is used only by the system/SVP module
 	.ROM_DATA(sdrom_data),
-//	.ROM_ACK(use_sdr ? sdrom_rdack : ddrom_rdack),
 	.ROM_ACK(sdrom_rdack),
 
-//MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
-//	.ROM_DATA2(),
-//	.ROM_ACK2(),
+// SVP inputs. ROM.
+	.ROM_DATA2(rom_data2),
+	.ROM_ACK2(rom_rdack2),
 
 //OUTPUTS
 	.DAC_LDATA(AUDIO_L),
@@ -466,9 +465,9 @@ system system
 	.ROM_BE(rom_be),
 	.ROM_REQ(rom_req),
 
-//MiSTER Genesis DDR RAM signals. DDR uses for SVP ROM.
-//	.ROM_ADDR2(),
-//	.ROM_REQ2(),
+// SVP outputs. ROM.
+	.ROM_ADDR2(rom_addr2),
+	.ROM_REQ2(rom_rd2),
 
 	.TRANSP_DETECT(TRANSP_DETECT)
 );
@@ -670,19 +669,21 @@ sdram sdram
 	.req1(rom_req),
 	.ack1(sdrom_rdack),
 
-	.addr2(0),
+//SVP ROM port
+	.addr2({4'b0,rom_addr2}),
 	.din2(0),
-	.dout2(),
+	.dout2(rom_data2),
 	.wrl2(0),
 	.wrh2(0),
-	.req2(0),
-	.ack2()
+	.req2(rom_rd2),
+	.ack2(rom_rdack2)
 );
 
 wire [24:1] rom_addr;
-wire [15:0] sdrom_data, rom_wdata;
+wire [20:1] rom_addr2;
+wire [15:0] sdrom_data, rom_data2, rom_wdata;
 wire  [1:0] rom_be;
-wire rom_req, sdrom_rdack, rom_we;
+wire rom_req, sdrom_rdack, rom_rd2, rom_rdack2, rom_we;
 
 ///////////////////////////////////////////////////
 //***********************************ROM loading***********************************

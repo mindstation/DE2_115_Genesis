@@ -694,7 +694,7 @@ begin
 	RAMA_ADDR <= IR(7 downto 0) when INST.AS = IA_RAM or INST.AD = IA_RAM else RAMA_PTR;
 	RAMA_D <= std_logic_vector(unsigned(RAMA_Q) + 1) when INST.AS = IA_INDPTR else SRC_DATA;
 	RAMA_WE <= INST.RAM(0) and LAST_CYCLE and EN when INST.AD = IA_RAM or INST.AD = IA_PTR or INST.AS = IA_INDPTR else '0';
-	RAMA : entity work.mlab generic map(8, 16)
+	RAMA : entity work.m9k generic map(8, 16)
 	port map(
 		clock			=> CLK,
 		rdaddress	=> RAMA_ADDR,
@@ -707,7 +707,7 @@ begin
 	RAMB_ADDR <= IR(7 downto 0) when INST.AS = IA_RAM or INST.AD = IA_RAM else RAMB_PTR;
 	RAMB_D <= std_logic_vector(unsigned(RAMB_Q) + 1) when INST.AS = IA_INDPTR else SRC_DATA;
 	RAMB_WE <= INST.RAM(1) and LAST_CYCLE and EN when INST.AD = IA_RAM or INST.AD = IA_PTR or INST.AS = IA_INDPTR else '0';
-	RAMB : entity work.mlab generic map(8, 16)
+	RAMB : entity work.m9k generic map(8, 16)
 	port map(
 		clock			=> CLK,
 		rdaddress	=> RAMB_ADDR,

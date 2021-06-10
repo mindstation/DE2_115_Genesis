@@ -115,7 +115,7 @@ module system
 	output reg    ROM_REQ,
 	input         ROM_ACK,
 
-	output [24:1] ROM_ADDR2,
+	output [20:1] ROM_ADDR2,
 	input  [15:0] ROM_DATA2,
 	output        ROM_REQ2,
 	input         ROM_ACK2, 
@@ -270,7 +270,7 @@ fx68k M68K
 
 	.DTACKn(M68K_MBUS_DTACK_N),
 	.VPAn(~M68K_INTACK),
-	.BERRn(1),
+	.BERRn(1'b1),
 	.IPL0n(M68K_IPL_N[0]),
 	.IPL1n(M68K_IPL_N[1]),
 	.IPL2n(M68K_IPL_N[2]),
@@ -438,7 +438,7 @@ vdp vdp
 	.BR_N(VBUS_BR_N),
 	.BGACK_N(VBUS_BGACK_N),
 
-	.VRAM_SPEED(~(FAST_FIFO|TURBO)),
+	.VRAM_SPEED(~(FAST_FIFO|(TURBO[1]|TURBO[0]))),
 	.VSCROLL_BUG(1'b0),
 	.BORDER_EN(BORDER),
 	.SVP_QUIRK(SVP_QUIRK),
@@ -631,11 +631,10 @@ always_comb begin
 	end
 end
 
-// address_a	Input	Critical Warning	Can't connect array with 16 elements in array dimension 1 to port with 17 elements in the same dimension
 dpram_dif #(17,8,16,16) sram
 (
 	.clock(MCLK),
-	.address_a(sram_addr),
+	.address_a({1'b0, sram_addr}),
 	.data_a(sram_di),
 	.wren_a(sram_wren & ~SVP_QUIRK),
 	.q_a(sram_q),
@@ -676,8 +675,6 @@ STM95XXX pier_eeprom
 //-----------------------------------------------------------------------
 // SVP
 //-----------------------------------------------------------------------
-
-//DISABLED. SVP module uses MLAB blocks Cyclone V. There isn't MLAB blocks in Cyclone IV E.
 reg         SVP_SEL;
 wire [15:0] SVP_DO;
 wire        SVP_DTACK_N;
@@ -686,7 +683,7 @@ wire [15:0] SVP_DRAM_A;
 wire [15:0] SVP_DRAM_DO;
 wire        SVP_DRAM_WE;
 wire [15:0] SVP_DRAM_DI = BRAM_DO;
-/*
+
 reg SVP_CLKEN;
 always @(posedge MCLK) SVP_CLKEN <= ~reset & ~SVP_CLKEN;
 
@@ -695,7 +692,7 @@ SVP svp
 	.CLK(MCLK),
 	.CE(SVP_CLKEN),
 	.RST_N(~reset & SVP_QUIRK),
-	.ENABLE(1),
+	.ENABLE(1'b1),
 
 	.BUS_A(MBUS_A[23:1]),
 	.BUS_DO(SVP_DO),
@@ -715,7 +712,7 @@ SVP svp
 	.DRAM_DO(SVP_DRAM_DO),
 	.DRAM_WE(SVP_DRAM_WE)
 );
-*/
+
 
 //-----------------------------------------------------------------------
 // 68K RAM

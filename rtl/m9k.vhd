@@ -4,7 +4,7 @@ USE ieee.std_logic_1164.all;
 LIBRARY altera_mf;
 USE altera_mf.altera_mf_components.all;
 
-ENTITY mlab IS
+ENTITY m9k IS
 	generic (
 		addr_width    : integer := 8;
 		data_width    : integer := 8
@@ -21,7 +21,7 @@ ENTITY mlab IS
 	);
 END ENTITY;
 
-ARCHITECTURE SYN OF mlab IS
+ARCHITECTURE SYN OF m9k IS
 	signal q0 : std_logic_vector((data_width - 1) downto 0);
 BEGIN
 	q<= q0 when cs = '1' else (others => '1');
@@ -30,16 +30,16 @@ BEGIN
 	GENERIC MAP (
 		indata_aclr => "OFF",
 		indata_reg => "INCLOCK",
-		intended_device_family => "Cyclone V",
+		intended_device_family => "Cyclone IV E",
 		lpm_type => "altdpram",
 		outdata_aclr => "OFF",
 		outdata_reg => "UNREGISTERED",
-		ram_block_type => "MLAB",
+		ram_block_type => "M9K",
 		rdaddress_aclr => "OFF",
-		rdaddress_reg => "UNREGISTERED",
+		rdaddress_reg => "OUTCLOCK",
 		rdcontrol_aclr => "OFF",
-		rdcontrol_reg => "UNREGISTERED",
-		read_during_write_mode_mixed_ports => "CONSTRAINED_DONT_CARE",
+		rdcontrol_reg => "OUTCLOCK",
+		read_during_write_mode_mixed_ports => "DONT_CARE", --What difference from CONSTRAINED_DONT_CARE?
 		width => data_width,
 		widthad => addr_width,
 		width_byteena => 1,
