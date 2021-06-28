@@ -706,7 +706,7 @@ rom_loader rom_loader
 	.oram_addr(loadrom_addr),
 	.oram_wrdata(loadrom_wdata),
 	.orom_load_wr(orom_load_wr), //active high when addr and data are ready
-	.irom_load_wait(rom_load_wait), //ex-ioctl_wait, if high, then stop next word reading while other word is writting to SDRAM
+	.irom_load_wait(rom_load_wait), //ex-ioctl_wait, if high, then stop next word reading from Flash while the other word is writting to SDRAM
 
 //Flash
 	.ofl_addr(fl_addr),
@@ -744,8 +744,9 @@ reg [24:0] rom_sz;
 //1628B gamepad.bin assign rom_sz = 24'b000000000000011001011100;
 //512kB assign rom_sz = 24'b000001000000000000000000;
 //1MB   assign rom_sz = 24'b000010000000000000000000;
-//4MB
-   assign rom_sz = 24'b001000000000000000000000;
+//2MB
+   assign rom_sz = 24'b000100000000000000000000;
+//4MB   assign rom_sz = 24'b001000000000000000000000;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 	old_download <= cart_download;
