@@ -22,8 +22,8 @@ module sys_top
 	output        VGA_SYNC_N,
 	
 	/////////// AUDIO //////////
-	output		  AUDIO_L, //AUDIO_L, analog connecting through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
-	output		  AUDIO_R, //AUDIO_R, analog connecting through RC-filter
+	output		  AUDIO_L, //exGPIO[1], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
+	output		  AUDIO_R, //exGPIO[3], analog connection through RC-filter
 	
 	output  [1:0] LEDR, //LEDR[0] = led_user
 	output  [1:0] LEDG,
