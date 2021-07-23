@@ -1,7 +1,8 @@
 module sys_top
 (
-	//Master input clock
+	/////////// CLOCK //////////
 	input         CLOCK_50,
+	input         CLOCK2_50,
 
 	// switch inputs
 	// SW[0] - RESET
@@ -223,7 +224,7 @@ emu emu
 I2C_AV_Config  i2c_con
 (
 //      Host Side
-.iCLK(CLOCK_50),
+.iCLK(CLOCK2_50),
 .iRST_N(reset),
 //      I2C Side
 .oI2C_SCLK(I2C_SCLK),
@@ -231,7 +232,7 @@ I2C_AV_Config  i2c_con
 );
 
 // Digital audio mixing
-wire        clk_audio = CLOCK_50;
+wire        clk_audio = CLOCK2_50;
 wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
 wire [15:0] alsa_l = 0, alsa_r = 0;
 

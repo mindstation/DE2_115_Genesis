@@ -44,7 +44,7 @@ always @(posedge iclk)
 		ifl_ack_syn1 <= ifl_ack;
 		irom_load_wait_syn1 <= irom_load_wait;
 		ifl_ack_syn2 <= ifl_ack_syn1;
-		irom_load_wait_syn2 <= irom_load_wait_syn2;
+		irom_load_wait_syn2 <= irom_load_wait_syn1;
 		
 		if (ireset)
 				fsm_state <= INIT;
