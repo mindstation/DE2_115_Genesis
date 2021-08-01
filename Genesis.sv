@@ -57,9 +57,6 @@ module emu
 	output         AUDIO_S,
 	output  [1:0]  AUDIO_MIX,
 
-	// Audio codec base clock
-	output         AUD_XCK,
-
 	// SDRAM interface with lower latency
 	output         SDRAM_CLK,
 	output         SDRAM_CKE,
@@ -310,7 +307,6 @@ pll pll
 	.inclk0(CLK_50M),
 	.c0(clk_sys),
 	.c1(clk_ram),
-	.c2(AUD_XCK),	//Audio codec MCLK 18.1 MHz (MAX 18.51 MHz)
 	.c3(), //SignalTap
 	.locked(locked)
 );

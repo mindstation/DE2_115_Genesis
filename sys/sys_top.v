@@ -63,6 +63,12 @@ module sys_top
 	input  [7:0]  FL_DQ
 );
 
+pll_sys pll_sys
+(
+	.inclk0(CLOCK2_50),
+	.c0(AUD_XCK), //Audio codec MCLK 18.0 MHz (MAX 18.51 MHz)
+);
+
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
 assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
@@ -191,8 +197,6 @@ emu emu
 	.AUDIO_S(audio_s),
 	.AUDIO_MIX(audio_mix),
 
-	.AUD_XCK(AUD_XCK),
-	
 	//SDRAM interface with lower latency
 	.SDRAM_CLK(DRAM_CLK),
 	.SDRAM_CKE(DRAM_CKE),
