@@ -69,6 +69,31 @@ pll_sys pll_sys
 	.c0(AUD_XCK), //Audio codec MCLK 18.0 MHz (MAX 18.51 MHz)
 );
 
+//////////////////////  RESET  ///////////////////////////////////
+
+// Initial
+reg init_reset_n = 0;
+always @(posedge CLOCK_50) begin
+	integer timeout = 0;
+
+	if(timeout < 2000000) begin
+		init_reset_n <= 0;
+		timeout <= timeout + 1;
+	end
+	else init_reset_n <= 1;
+end
+
+// By button
+reg reset_button_syn = 0;
+reg resetb;
+always @(posedge CLOCK_50) begin
+	resetb  <= ~KEY[3] | SW[0];
+	reset_button_syn <= resetb;
+end
+
+wire reset;
+assign reset = ~init_reset_n | reset_button_syn;
+
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
 assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
@@ -85,9 +110,6 @@ assign joystick_1 = 32'd0;
 assign joystick_2 = 32'd0;
 assign joystick_3 = 32'd0;
 assign joystick_4 = 32'd0;
-
-wire reset;
-assign reset = ~KEY[3] | SW[0];
 
 /////////////////////////  VGA output  //////////////////////////////////
 wire [23:0] vga_data_sl;
@@ -121,7 +143,7 @@ assign VGA_R  = vga_o[23:16];
 assign VGA_G  = vga_o[15:8];
 assign VGA_B  = vga_o[7:0];
 
-//Disable Blank and sync at VGA out.
+// Disable Blank and sync at VGA out.
 assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
 assign VGA_SYNC_N = 0;
 
