@@ -3,18 +3,18 @@ module flash
 	input               iclk,
 	input               ireset,
 	
-	input  		 [7:0]  iFL_DQ,
+	input  		 [7:0] iFL_DQ,
 	output reg  [22:0] oFL_ADDR,	
 	output reg	       oFL_RST_N,
-	output reg	       oFL_CE_N,
-	output reg	       oFL_OE_N,
+	output reg	       oFL_CE_N = 1'b1,
+	output reg	       oFL_OE_N = 1'b1,
 	output			    oFL_WE_N,
 	output			    oFL_WP_N, // write protection is disabled forever (set to 1)
 	
 	input       [22:0] ifl_addr,
 	output reg  [15:0] ofl_dout,
 	input              ifl_req,
-	output reg         ofl_ack
+	output reg         ofl_ack = 1'b0
 );
 
 // 54MHz iclk flash latencies in cycles

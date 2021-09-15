@@ -2,6 +2,8 @@ db
 greybox_tmp
 incremental_db
 simulation
+# but testbench is need
+!simulation/testbench/*
 
 output_files
 # but *.sof and *.jic is useful for FPGA loading

@@ -44,7 +44,7 @@ module sdram
 	input      [15:0] din0,
 	output     [15:0] dout0,
 	input             req0,
-	output reg        ack0,
+	output reg        ack0 = 0,
 	
 	input      [24:1] addr1,
 	input             wrl1,
@@ -52,7 +52,7 @@ module sdram
 	input      [15:0] din1,
 	output     [15:0] dout1,
 	input             req1,
-	output reg        ack1,
+	output reg        ack1 = 0,
 	
 	input      [24:1] addr2,
 	input             wrl2,
@@ -60,7 +60,7 @@ module sdram
 	input      [15:0] din2,
 	output     [15:0] dout2,
 	input             req2,
-	output reg        ack2
+	output reg        ack2 = 0
 );
 
 assign SDRAM_nCS = 0;
@@ -82,7 +82,7 @@ localparam STATE_CONT  = STATE_START+RASCAS_DELAY;
 localparam STATE_READY = STATE_CONT+CAS_LATENCY+1'd1;
 localparam STATE_LAST  = STATE_READY;      // last state in cycle
 
-reg  [2:0] state;
+reg  [2:0] state = 0;
 reg [22:1] a;
 reg [15:0] data;
 reg        we;
@@ -95,15 +95,24 @@ wire [2:0] wr = {wrl2|wrh2,wrl1|wrh1,wrl0|wrh0};
 reg [15:0] dout;
 
 
+localparam MODE_NORMAL = 2'b00;
+localparam MODE_RESET  = 2'b01;
+localparam MODE_LDM    = 2'b10;
+localparam MODE_PRE    = 2'b11;
+
+// initialization 
+reg [1:0] mode = 0;
+reg [4:0] reset=5'h1f;
+
 assign dout0 = dout;
 assign dout1 = dout;
 assign dout2 = dout;
 
 
 // access manager
+reg [9:0] rfs_cnt = 0;
+reg rfs, rfs2;
 always @(posedge clk) begin
-	reg [9:0] rfs_cnt;
-	reg rfs, rfs2;
 	
 	rfs_cnt <= rfs_cnt + 1'd1;
 	if (rfs_cnt == 850) begin
@@ -170,17 +179,8 @@ always @(posedge clk) begin
 	end
 end
 
-
-localparam MODE_NORMAL = 2'b00;
-localparam MODE_RESET  = 2'b01;
-localparam MODE_LDM    = 2'b10;
-localparam MODE_PRE    = 2'b11;
-
-// initialization 
-reg [1:0] mode;
-reg [4:0] reset=5'h1f;
+reg init_old=0;
 always @(posedge clk) begin
-	reg init_old=0;
 	init_old <= init;
 
 	if(init_old & ~init) reset <= 5'h1f;
@@ -205,13 +205,16 @@ localparam CMD_AUTO_REFRESH    = 3'b001;
 localparam CMD_LOAD_MODE       = 3'b000;
 
 // SDRAM state machines
+reg [15:0] sdram_odata;
+assign SDRAM_DQ = sdram_odata;
+
 always @(posedge clk) begin
 	if(state == STATE_START) SDRAM_BA <= (mode == MODE_NORMAL) ? ba : 2'b00;
 
-	SDRAM_DQ <= 'Z;
+	sdram_odata <= 'Z;
 	casex({active,we,mode,state})
 		{2'bXX, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= active ? CMD_ACTIVE : CMD_AUTO_REFRESH;
-		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE, SDRAM_DQ} <= {CMD_WRITE, data};
+		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE, sdram_odata} <= {CMD_WRITE, data};
 		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
 
 		// init
