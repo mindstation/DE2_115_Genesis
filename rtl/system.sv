@@ -49,6 +49,7 @@ module system
 	input         EXPORT,
 	input         FAST_FIFO,
 	input         SRAM_QUIRK,
+	input         SRAM00_QUIRK,
 	input         EEPROM_QUIRK,
 	input         NORAM_QUIRK,
 	input         PIER_QUIRK,
@@ -78,6 +79,7 @@ module system
 	output        VBL,
 	output        CE_PIX,
 	input         BORDER,
+	input         CRAM_DOTS,
 
 	output        INTERLACE,
 	output        FIELD,
@@ -124,7 +126,15 @@ module system
 	input         LADDER,
 	input         OBJ_LIMIT_HIGH,
 
-	output		  TRANSP_DETECT
+	output		  TRANSP_DETECT,
+
+	//debug
+	input         PAUSE_EN,
+	input         BGA_EN,
+	input         BGB_EN,
+	input         SPR_EN,
+	output [23:0] DBG_M68K_A,
+	output [23:0] DBG_VBUS_A
 );
 
 reg reset;
@@ -167,40 +177,40 @@ always @(negedge MCLK) begin
 		ZCLKCNT <= ZCLKCNT + 1'b1;
 		if (ZCLKCNT == 14) begin
 			ZCLKCNT <= 0;
-			Z80_CLKENn <= 1;
+			Z80_CLKENn <= ~PAUSE_EN;
 		end
 		
 		Z80_CLKENp <= 0;
 		if (ZCLKCNT == 7) begin
-			Z80_CLKENp <= 1;
+			Z80_CLKENp <= ~PAUSE_EN;
 		end
 
 		PSG_CLKEN <= 0;
 		PCLKCNT <= PCLKCNT + 1'b1;
 		if (PCLKCNT == 14) begin
 			PCLKCNT <= 0;
-			PSG_CLKEN <= 1;
+			PSG_CLKEN <= ~PAUSE_EN;
 		end
 
 		M68K_CLKENp <= 0;
 		VCLKCNT <= VCLKCNT + 1'b1;
 		if (VCLKCNT == VCLKMAX) begin
 			VCLKCNT <= 0;
-			M68K_CLKENp <= 1;
+			M68K_CLKENp <= ~PAUSE_EN;
 			VCLKMAX <= (TURBO == 2) ? 4'd1 : (TURBO == 1) ? 4'd3 : 4'd6;
 			VCLKMID <= (TURBO == 2) ? 4'd0 : (TURBO == 1) ? 4'd1 : 4'd3;
 		end
 
 		M68K_CLKENn <= 0;
 		if (VCLKCNT == VCLKMID) begin
-			M68K_CLKENn <= 1;
+			M68K_CLKENn <= ~PAUSE_EN;
 		end
 
 		FM_CLKEN <= 0;
 		FCLKCNT <= FCLKCNT + 1'b1;
 		if (FCLKCNT == 6) begin
 			FCLKCNT <= 0;
-			FM_CLKEN <= 1;
+			FM_CLKEN <= ~PAUSE_EN;
 		end
 	end
 end
@@ -267,6 +277,7 @@ fx68k M68K
 	.BGn(M68K_BG_N),
 	.BRn(M68K_BR_N),
 	.BGACKn(M68K_BGACK_N),
+	.HALTn(1'b1),
 
 	.DTACKn(M68K_MBUS_DTACK_N),
 	.VPAn(~M68K_INTACK),
@@ -274,28 +285,30 @@ fx68k M68K
 	.IPL0n(M68K_IPL_N[0]),
 	.IPL1n(M68K_IPL_N[1]),
 	.IPL2n(M68K_IPL_N[2]),
-	.iEdb(genie_ovr ? genie_data : M68K_MBUS_D),
+	.iEdb(genie_data),
 	.oEdb(M68K_DO),
 	.eab(M68K_A)
 );
+
+
+assign DBG_M68K_A = {M68K_A,1'b0};
+assign DBG_VBUS_A = {VBUS_A,1'b0};
 
 //--------------------------------------------------------------
 // CHEAT CODES
 //--------------------------------------------------------------
 
-wire genie_ovr;
 wire [15:0] genie_data;
-
-CODES #(.ADDR_WIDTH(24), .DATA_WIDTH(16)) codes (
+CODES #(.ADDR_WIDTH(24), .DATA_WIDTH(16), .BIG_ENDIAN(1)) codes
+(
 	.clk(MCLK),
 	.reset(LOADING | GG_RESET),
 	.enable(~GG_EN),
-	.addr_in({M68K_A[23:1], 1'b0}),
-	.data_in(M68K_MBUS_D),
 	.code(GG_CODE),
 	.available(GG_AVAILABLE),
-	.genie_ovr(genie_ovr),
-	.genie_data(genie_data)
+	.addr_in({M68K_A[23:1], 1'b0}),
+	.data_in(M68K_MBUS_D),
+	.data_out(genie_data)
 );
 
 
@@ -441,6 +454,7 @@ vdp vdp
 	.VRAM_SPEED(~(FAST_FIFO|(TURBO[1]|TURBO[0]))),
 	.VSCROLL_BUG(1'b0),
 	.BORDER_EN(BORDER),
+	.CRAM_DOTS(CRAM_DOTS),
 	.SVP_QUIRK(SVP_QUIRK),
 	.OBJ_LIMIT_HIGH_EN(OBJ_LIMIT_HIGH),
 
@@ -458,7 +472,11 @@ vdp vdp
 	.HBL(HBL),
 	.VBL(VBL),
 
-	.TRANSP_DETECT(TRANSP_DETECT)
+	.TRANSP_DETECT(TRANSP_DETECT),
+	
+	.BGA_EN(BGA_EN),
+	.BGB_EN(BGB_EN),
+	.SPR_EN(SPR_EN)
 );
 
 // PSG 0x10-0x17 in VDP space
@@ -599,15 +617,7 @@ multitap multitap
 // ROM
 //-----------------------------------------------------------------------
 
-wire [23:0] pier_bank = (MBUS_A[23:1] - 23'h140000);
-always_comb begin
-	case(BANK_MODE)
-		2'h2: ROM_ADDR = {BANK_REG[MBUS_A[21:19]], MBUS_A[18:1]};
-		2'h3: ROM_ADDR = {BANK_REG[pier_bank[20:18]], MBUS_A[18:1]};
-		default: ROM_ADDR = MBUS_A;
-	endcase
-end
-
+assign ROM_ADDR = BANK_ROM ? {BANK_REG[MBUS_A[21:19]], MBUS_A[18:1]} : MBUS_A;
 assign ROM_BE = ~{MBUS_UDS_N, MBUS_LDS_N};
 assign ROM_WDATA = MBUS_DO;
 
@@ -640,7 +650,8 @@ dpram_dif #(17,8,16,16) sram
 	.q_a(sram_q),
 
 	.address_b(LOADING ? ram_rst_a : SVP_QUIRK ? SVP_DRAM_A : BRAM_A),
-	.data_b(LOADING ? 16'h0000 : SVP_QUIRK ? SVP_DRAM_DO : BRAM_DI),
+	// Initializes SRAM to 0x0 for Sonic 1 Remastered, all other games have SRAM initialized to 0xFF
+	.data_b(LOADING ? (SRAM00_QUIRK ? 16'h0000 : 16'hFFFF) : SVP_QUIRK ? SVP_DRAM_DO : BRAM_DI),
 	.wren_b(LOADING | SVP_DRAM_WE | BRAM_WE),
 	.q_b(BRAM_DO)
 );
@@ -764,8 +775,9 @@ reg        MBUS_LDS_N;
 
 reg [15:0] NO_DATA;
 
-reg [4:0]  BANK_REG[0:7];
-reg [2:0]  BANK_MODE; //0 = none, 1 = BANK SRAM, 2 = BANK ROM
+reg  [4:0] BANK_REG[0:7];
+reg        BANK_ROM;
+reg        BANK_SRAM;
 
 reg  [3:0] mstate;
 reg  [1:0] msrc;
@@ -809,14 +821,13 @@ always @(posedge MCLK) begin
 		IO_SEL <= 0;
 		SVP_SEL <= 0; 
 		ZBUS_SEL <= 0;
-		BANK_MODE <= 0;
+		BANK_ROM <= 0;
+		BANK_SRAM <= 0;
 		mstate <= MBUS_IDLE;
 		pier_count <= 0;
 		MBUS_RNW <= 1;
 		NO_DATA <= 'h4E71;
-
-		if(PIER_QUIRK) BANK_REG <= '{0,0,0,0,0,0,0,0};
-		else BANK_REG <= '{0,1,2,3,4,5,6,7};
+		BANK_REG <= '{0,1,2,3,4,5,6,7};
 	end
 	else begin
 	/*
@@ -891,7 +902,7 @@ always @(posedge MCLK) begin
 
 				if (MBUS_A[23:20]<'hA || (msrc == MSRC_Z80 && MBUS_A[23:20]<'hE && ROMSZ[24:20]>='hA)) begin
 					//ROM: 000000-9FFFFF (A00000-DFFFFF)
-					if (BANK_MODE == 2'h1 && MBUS_A[23:21] == 1) begin
+					if (BANK_SRAM && MBUS_A[23:21] == 1) begin
 						// 200000-3FFFFF SRAM overrides ROM when bank is selected
 						SRAM_SEL <= 1;
 						mstate <= MBUS_SRAM_READ;
@@ -908,7 +919,7 @@ always @(posedge MCLK) begin
 						data <= 0;
 						mstate <= MBUS_FINISH;
 					end
-					else if (SRAM_QUIRK && {MBUS_A,1'b0} == 'h200000) begin
+					else if ((SRAM_QUIRK | SRAM00_QUIRK) && {MBUS_A,1'b0} == 'h200000) begin
 						SRAM_SEL <= 1;
 						mstate <= MBUS_SRAM_READ;
 					end
@@ -923,7 +934,6 @@ always @(posedge MCLK) begin
 						mstate <= MBUS_ROM_WRITE;
 					end
 					else if (MBUS_A < ROMSZ) begin
-						if (PIER_QUIRK) BANK_MODE <= (MBUS_A >= 23'h140000) ? 3'h3 : 3'h0;
 						if (SVP_QUIRK && msrc == MSRC_VDP) MBUS_A <= MBUS_A - 1'd1;
 						ROM_WE <= 0;
 						ROM_REQ <= ~ROM_ACK;
@@ -945,7 +955,7 @@ always @(posedge MCLK) begin
 				end
 
 				//ZBUS: A00000-A07FFF (A08000-A0FFFF)
-				else if(MBUS_A[23:16] == 'hA0) mstate <= MBUS_ZBUS_PRE;
+				else if(MBUS_A[23:16] == 'hA0) mstate <= !Z80_BUSRQ_N ? MBUS_ZBUS_PRE : MBUS_FINISH;
 
 				//I/O: A10000-A1001F (+mirrors)
 				else if(MBUS_A[23:5] == {16'hA100, 3'b000}) begin
@@ -965,17 +975,22 @@ always @(posedge MCLK) begin
 					if (~MBUS_RNW) begin
 						if (ROMSZ > 'h200000) begin // SSF2/Pier Solar ROM banking
 							if (MBUS_A[3:1]) begin
+								BANK_ROM <= 1;
 								if (~PIER_QUIRK) begin // SSF2
 									BANK_REG[MBUS_A[3:1]] <= MBUS_DO[4:0];
-									BANK_MODE <= 2'h2;
-								end else if (MBUS_A[3:1] == 'h4) begin // Pier EEPROM
+								end
+								else if (MBUS_A[3:1] == 4) begin // Pier EEPROM
 									{ep_cs, ep_hold , ep_sck, ep_si} <= MBUS_DO[3:0];
-								end else if (~MBUS_A[3]) begin // Pier Banks
-									BANK_REG[MBUS_A[3:1] - 1'b1] <= {1'b0, MBUS_DO[3:0]};
+								end
+								else if (~MBUS_A[3]) begin // Pier Banks
+									BANK_REG[{1'b1,MBUS_A[2:1]}] <= MBUS_DO[3:0];
 								end
 							end
-						end else begin // SRAM Banking
-							BANK_MODE <= {1'b0, MBUS_DO[0]};
+							else if (~PIER_QUIRK) begin // SRAM control only in the first register on SSF2 mapper
+							   BANK_SRAM <= {MBUS_DO[0]};
+							end
+						end else begin
+							BANK_SRAM <= {MBUS_DO[0]};
 						end
 					end else if (PIER_QUIRK && MBUS_A[3:1] == 'h5) begin
 						data <= {15'h7FFF, m95_so};
@@ -1159,9 +1174,9 @@ always @(posedge MCLK) begin
 						VDP_MBUS_DTACK_N <= 0;
 						mstate <= MBUS_IDLE;
 					end
-				endcase;
+				endcase
 			end
-		endcase;
+		endcase
 	end
 end
 
@@ -1195,7 +1210,7 @@ T80s #(.T2Write(1)) Z80
 	.RD_n(Z80_RD_N),
 	.WR_n(Z80_WR_N),
 	.A(Z80_A),
-	.DI((~Z80_ZBUS_DTACK_N) ? Z80_ZBUS_D : Z80_MBUS_D),
+	.DI((~Z80_MBUS_DTACK_N) ? Z80_MBUS_D : Z80_ZBUS_D),
 	.DO(Z80_DO)
 );
 
@@ -1286,19 +1301,23 @@ always @(posedge MCLK) begin
 
 		case (zstate)
 		ZBUS_IDLE:
-			if (ZBUS_SEL & MBUS_ZBUS_DTACK_N) begin
-				ZBUS_A <= {MBUS_A[14:1], MBUS_UDS_N};
-				ZBUS_DO <= (~MBUS_UDS_N) ? MBUS_DO[15:8] : MBUS_DO[7:0];
-				ZBUS_WE <= ~MBUS_RNW & ZBUS_FREE;
-				zsrc <= ZSRC_MBUS;
-				zstate <= ZBUS_READ;
-			end
-			else if (Z80_ZBUS_SEL & Z80_ZBUS_DTACK_N) begin
-				ZBUS_A <= Z80_A[14:0];
-				ZBUS_DO <= Z80_DO;
-				ZBUS_WE <= ~Z80_WR_N;
-				zsrc <= ZSRC_Z80;
-				zstate <= ZBUS_READ;
+			begin
+				if (Z80_RD_N)      Z80_ZBUS_D <= 8'hFF;
+
+				if (ZBUS_SEL & MBUS_ZBUS_DTACK_N) begin
+					ZBUS_A <= {MBUS_A[14:1], MBUS_UDS_N};
+					ZBUS_DO <= (~MBUS_UDS_N) ? MBUS_DO[15:8] : MBUS_DO[7:0];
+					ZBUS_WE <= ~MBUS_RNW & ZBUS_FREE;
+					zsrc <= ZSRC_MBUS;
+					zstate <= ZBUS_READ;
+				end
+				else if (Z80_ZBUS_SEL & Z80_ZBUS_DTACK_N) begin
+					ZBUS_A <= Z80_A[14:0];
+					ZBUS_DO <= Z80_DO;
+					ZBUS_WE <= ~Z80_WR_N;
+					zsrc <= ZSRC_Z80;
+					zstate <= ZBUS_READ;
+				end
 			end
 
 		ZBUS_READ:

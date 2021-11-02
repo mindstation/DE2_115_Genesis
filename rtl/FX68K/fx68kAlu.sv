@@ -319,8 +319,9 @@ module fx68kAlu ( input clk, pwrUp, enT1, enT3, enT4,
 		OP_EXT:
 			// Division overflow.
 			if( aluColumn == 5) begin
-				ccrTemp[VF] = 1'b1;
-				ccrTemp[NF] = 1'b1;				ccrTemp[ ZF] = 1'b0;
+				ccrTemp[VF] = 1'b1;		
+				ccrTemp[NF] = 1'b1; 
+				ccrTemp[ZF] = 1'b0;
 			end
 
 		OP_SUB0,				// used by NOT

@@ -1,6 +1,7 @@
 //============================================================================
-//  FPGAGen port to MiSTer
-//  Copyright (c) 2017-2019 Sorgelig
+//  MiSTer FPGAGen port to DE2-115
+//  Copyright (c) 2020-2021 Alexander Kirichenko
+//  Original MiSTer port: Copyright (c) 2017-2019 Sorgelig
 //
 //  YM2612 implementation by Jose Tejada Gomez. Twitter: @topapate
 //  Original Genesis code: Copyright (c) 2010-2013 Gregory Estrade (greg@torlus.com) 
@@ -35,6 +36,11 @@ module emu
 	//Must be based on CLK_VIDEO
 	output         CE_PIXEL,
 	
+	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
+	
 	output  [7:0]  VGA_R,
 	output  [7:0]  VGA_G,
 	output  [7:0]  VGA_B,
@@ -43,6 +49,11 @@ module emu
 	output         VGA_DE,    // = ~(VBlank | HBlank)
 	output         VGA_F1,
 	output  [1:0]  VGA_SL,
+	output         VGA_SCALER, // Force VGA scaler
+	
+	input  [11:0] HDMI_WIDTH,
+	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
 	
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 	
@@ -52,6 +63,7 @@ module emu
 	output  [1:0]  LED_POWER,
 	output  [1:0]  LED_DISK,
 
+	input          CLK_AUDIO, // 24.576 MHz
 	output [15:0]  AUDIO_L,
 	output [15:0]  AUDIO_R,
 	output         AUDIO_S,
@@ -94,17 +106,76 @@ module emu
 
 assign {UART_RTS, UART_TXD, UART_DTR} = 'b0;
 
-// 1 - signed audio samples, 0 - unsigned
-assign AUDIO_S = 1;
-// 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-assign AUDIO_MIX = 0;
-
 // b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
 	// hint: supply 2'b00 to let the system control the LED.
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign LED_USER  = cart_download;
+
+assign VGA_SCALER= 0;
+
+// 1 - signed audio samples, 0 - unsigned
+assign AUDIO_S = 1;
+// 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
+assign AUDIO_MIX = 0;
+
+assign HDMI_FREEZE = 0;
+
+wire [1:0] ar = status[49:48];
+wire [7:0] arx,ary;
+
+always_comb begin
+	case(res) // {V30, H40}
+		2'b00: begin // 256 x 224
+			arx = 8'd64;
+			ary = 8'd49;
+		end
+
+		2'b01: begin // 320 x 224
+			arx = status[30] ? 8'd10: 8'd64;
+			ary = status[30] ? 8'd7 : 8'd49;
+		end
+
+		2'b10: begin // 256 x 240
+			arx = 8'd128;
+			ary = 8'd105;
+		end
+
+		2'b11: begin // 320 x 240
+			arx = status[30] ? 8'd4 : 8'd128;
+			ary = status[30] ? 8'd3 : 8'd105;
+		end
+	endcase
+end
+
+wire       vcrop_en = status[34];
+wire [3:0] vcopt    = status[53:50];
+reg        en216p;
+reg  [4:0] voff;
+always @(posedge CLK_VIDEO) begin
+	en216p <= ((HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scale);
+	voff <= (vcopt < 6) ? {vcopt,1'b0} : ({vcopt,1'b0} - 5'd24);
+end
+
+wire vga_de;
+video_freak video_freak
+(
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_VS(VGA_VS),
+	.HDMI_WIDTH(HDMI_WIDTH),
+	.HDMI_HEIGHT(HDMI_HEIGHT),
+	.VIDEO_ARX(VIDEO_ARX),
+	.VIDEO_ARY(VIDEO_ARY),
+	
+	.VGA_DE_IN(vga_de),
+	.ARX((!ar) ? arx : (ar - 1'd1)),
+	.ARY((!ar) ? ary : 12'd0),
+	.CROP_SIZE((en216p & vcrop_en) ? 10'd216 : 10'd0),
+	.CROP_OFF(voff),
+	.SCALE(status[55:54])
+);
 
 // Status Bit Map:
 //             Upper                             Lower              
@@ -119,7 +190,7 @@ localparam CONF_STR = {
 	"FS,BINGENMD ;",
 	"-;",
 	"O67,Region,JP,US,EU;",
-	"O89,Auto Region,File Ext,Header,Disabled;",
+	"O89,Auto Region,Header,File Ext,Disabled;",
 	"D2ORS,Priority,US>EU>JP,EU>US>JP,US>JP>EU,JP>US>EU;",
 	"-;",
 	"C,Cheats;",
@@ -129,31 +200,48 @@ localparam CONF_STR = {
 	"D0RH,Save Backup RAM;",
 	"D0OD,Autosave,Off,On;",
 	"-;",
-	"OA,Aspect Ratio,4:3,16:9;",
-	"OU,320x224 Aspect,Original,Corrected;",
-	"O13,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"OT,Border,No,Yes;",
-	"oEF,Composite Blend,Off,On,Adaptive;",
-	"-;",
-	"OEF,Audio Filter,Model 1,Model 2,Minimal,No Filter;",
-	"OB,FM Chip,YM2612,YM3438;",
-	"ON,HiFi PCM,No,Yes;",
-	"-;",
-	"O4,Swap Joysticks,No,Yes;",
-	"O5,6 Buttons Mode,No,Yes;",
-	"o57,Multitap,Disabled,4-Way,TeamPlayer: Port1,TeamPlayer: Port2,J-Cart;",
-	"OIJ,Mouse,None,Port1,Port2;",
-	"OK,Mouse Flip Y,No,Yes;",
-	"oD,Serial,OFF,SNAC;",
-	"-;",
-	"o89,Gun Control,Disabled,Joy1,Joy2,Mouse;",
-	"H4oA,Gun Fire,Joy,Mouse;",
-	"H4oBC,Cross,Small,Medium,Big,None;",
-	"-;",
-	"o34,ROM Storage,Auto,SDRAM,DDR3;",
-	"-;",
-	"OPQ,CPU Turbo,None,Medium,High;",
-	"OV,Sprite Limit,Normal,High;",
+
+	"P1,Audio & Video;",
+	"P1-;",
+	"P1oGH,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"P1OU,320x224 Aspect,Original,Corrected;",
+	"P1O13,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"P1-;",
+	"d5P1o2,Vertical Crop,Disabled,216p(5x);",
+	"d5P1oIL,Crop Offset,0,2,4,8,10,12,-12,-10,-8,-6,-4,-2;",
+	"P1oMN,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"P1-;",
+	"P1OT,Border,No,Yes;",
+	"P1oEF,Composite Blend,Off,On,Adaptive;",
+	"P1OA,CRAM Dots,Off,On;",
+	"P1-;",
+	"P1OEF,Audio Filter,Model 1,Model 2,Minimal,No Filter;",
+	"P1OB,FM Chip,YM2612,YM3438;",
+	"P1ON,HiFi PCM,No,Yes;",
+
+	"P2,Input;",
+	"P2-;",
+	"P2O4,Swap Joysticks,No,Yes;",
+	"P2O5,6 Buttons Mode,No,Yes;",
+	"P2o57,Multitap,Disabled,4-Way,TeamPlayer: Port1,TeamPlayer: Port2,J-Cart;",
+	"P2-;",
+	"P2OIJ,Mouse,None,Port1,Port2;",
+	"P2OK,Mouse Flip Y,No,Yes;",
+	"P2-;",
+	"P2oD,Serial,OFF,SNAC;",
+	"P2-;",
+	"P2o89,Gun Control,Disabled,Joy1,Joy2,Mouse;",
+	"D4P2oA,Gun Fire,Joy,Mouse;",
+	"D4P2oBC,Cross,Small,Medium,Big,None;",
+
+	"P3,Miscellaneous;",
+	"P3-;",
+	"P3o34,ROM Storage,Auto,SDRAM,DDR3;",
+	"P3-;",
+	"P3OPQ,CPU Turbo,None,Medium,High;",
+	"P3OV,Sprite Limit,Normal,High;",
+	"P3-;",
+
 	"-;",
 	"H3o0,Enable FM,Yes,No;",
 	"H3o1,Enable PSG,Yes,No;",
@@ -173,13 +261,10 @@ reg  [63:0] status;
 wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 
-//wire        ioctl_download;
-//wire        ioctl_wr;
-//wire [24:0] ioctl_addr;
-wire [15:0] ioctl_data;
 wire  [7:0] ioctl_index;
 
-//wire        forced_scandoubler;
+// If forced_scandoubler is zero, then disable scandoubler
+wire        forced_scandoubler = 0;
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
 
@@ -213,7 +298,7 @@ assign gamma_bus[7:0] = 8'b0;
 //status[5] system, J3BUT set a 3 buttons controller mode (active LOW)
 //status[7:6] system/multitap/gen_io EXPORT parameter: maybe 2'b00 - Japan, 2'b01 - USA, 2b'10 - Europe. status[7]=1 system, Genesis PAL mode (VDP, multitap)
 //status[9:8]=2'b10 auto region disabled (DE2_115_Genesis). Can be IGNORED. 2'b00 region by file extention, 2'b01 region by ROM header. Set status_in[7:6] HSP parameter by region_req[1:0]
-//status[10]=1 then VIDEO_ARX x VIDEO_ARY = 16x9
+//status[10]=1 Enable VDP CRAM dots
 //status[11]=0 jt12, YM2612 ladder (active LOW)
 //status[13] DE2_115_Genesis, sav_pending status at cart BRAM SAVE/LOAD. Used by HSP. Can be IGNORED
 //status[15:14] rtl/genesis_lpf, FM low pass filter 2'b00 SMD Model 1, 2'b01 SMD Model 2, 2'b10 - 8.5khz (minimal) filter
@@ -230,6 +315,9 @@ assign gamma_bus[7:0] = 8'b0;
 //status[31]=1 vdp OBJ_LIMIT_HIGH - enable more sprites and pixels per line. 0 - enable sprite limit like MD
 //status[32]=0 ENABLE_FM (active LOW)
 //status[33]=0 ENABLE_PSG (active LOW)
+
+//vcrop_en = status[34] CROP_SIZE((en216p & vcrop_en) ? 10'd216 : 10'd0)
+
 //status[36:35] DE2_115_Genesis/system, use_sdr. 2'b00 - use_sdr==|sdram_sz[2:0], where sdram_sz[1:0] is SDRAM size: 0 - none, 1 - 32MB, 2 - 64MB, 3 - 128MB (taken from  hps_io). If status[36:35] non zero - use_sdr==status[35]
 //status[39:37] system, MULTITAP type: 3'b001 - 4-way, 3b'010 - controller 2 is controller 2, mode or 3b'011 - controller 2 is controller 5. 3b'100 - J-cart. 3b'000 - multitap disabled
 //status[41:40] gun_mode, if 2'b00 in gen_io then GUN disabled. lightgun, MOUSE_XY and JOY_X, JOY_Y, JOY: if 2'b11 then use mouse, 2'b01 use joypad at joystick_0, stick 0; 2'b10 or 2'b00 use joypad at joystick_1, stick 1
@@ -238,6 +326,8 @@ assign gamma_bus[7:0] = 8'b0;
 //status[45]=1 DE2_115_Genesis, MISTer SERJOYSTICK enabled (GPIO)
 //status[46]=1 cofi_enable, active HIGH
 //status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
+//ar = status[49:48]
+//vcopt    = status[53:50] CROP_OFF
 //status[63:48] loopback to HPS_BUS. Ignore {status[63:48], status[34], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
 
 always @(posedge clk_sys)
@@ -260,14 +350,10 @@ assign joy1_x = '0;
 //exHPS signal, menu index used to upload the file (8 bit). If it's LOW, then cart_download will be HIGH when ioctl_download is HIGH
 assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
-//assign ioctl_wr = '1;
 //exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
 //ioctl_addr[24:1] used by sdram module as write address for sdram port0 when ROM uploads to RAM
 //ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
-//assign ioctl_addr = 25'b0000000000000000000001111;
 //exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
-//May be zero, but I set it to "J" region for future, when ROM loading will work
-assign ioctl_data = "JJ";
 
 //Also using for BRAM save/load, not used
 //img_mounted signaling that new image has been mounted
@@ -371,6 +457,7 @@ system system
 	.EXPORT(|status[7:6]),
 	.PAL(PAL),
 	.SRAM_QUIRK(sram_quirk),
+	.SRAM00_QUIRK(sram00_quirk),
 	.EEPROM_QUIRK(eeprom_quirk),
 	.NORAM_QUIRK(noram_quirk),
 	.PIER_QUIRK(pier_quirk),
@@ -379,6 +466,7 @@ system system
 	.TURBO(status[26:25]),
 
 	.BORDER(status[29]),
+	.CRAM_DOTS(status[10]),
 
 	.FAST_FIFO(fifo_quirk),
 	.SVP_QUIRK(svp_quirk),
@@ -389,8 +477,8 @@ system system
 	.GG_CODE(gg_code),
 
 	.J3BUT(~status[5]),
-	.JOY_1(status[4] ? joystick_1 : joystick_0),
-	.JOY_2(status[4] ? joystick_0 : joystick_1),
+	.JOY_1(status[4] ^ status[45] ? joystick_1 : joystick_0),
+	.JOY_2(status[4] ^ status[45] ? joystick_0 : joystick_1),
 	.JOY_3(joystick_2),
 	.JOY_4(joystick_3),
 	.JOY_5(joystick_4),
@@ -430,6 +518,12 @@ system system
 	.ROM_DATA2(rom_data2),
 	.ROM_ACK2(rom_rdack2),
 
+// debug
+	.PAUSE_EN(DBG_PAUSE_EN),
+	.BGA_EN(VDP_BGA_EN),
+	.BGB_EN(VDP_BGB_EN),
+	.SPR_EN(VDP_SPR_EN),
+	
 //OUTPUTS
 	.DAC_LDATA(AUDIO_L),
 	.DAC_RDATA(AUDIO_R),
@@ -552,9 +646,9 @@ cofi coffee (
 	.blue_out(blue)
 );
 
-wire hs_c, vs_c, hblank_c, vblank_c;
-
 //***********************************gamma, scandoubler, scanlines***********************************
+
+wire hs_c, vs_c, hblank_c, vblank_c;
 
 video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 (
@@ -567,15 +661,14 @@ video_mixer #(.LINE_LENGTH(320), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 
 	.gamma_bus(gamma_bus),
 
-	.clk_vid(CLK_VIDEO),
-	.ce_pix(~old_ce_pix & ce_pix),
-	.ce_pix_out(CE_PIXEL),
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
 
-	.scanlines(2'b0),
+	.ce_pix(~old_ce_pix & ce_pix),
+	
 	.scandoubler(~interlace && scale),
 	.hq2x(scale==1),
-
-	.mono(1'b0),
+	.freeze_sync(),
 
 	.R((lg_target && gun_mode && (~&status[44:43])) ? {8{lg_target[0]}} : red),
 	.G((lg_target && gun_mode && (~&status[44:43])) ? {8{lg_target[1]}} : green),
@@ -656,7 +749,7 @@ sdram sdram
 	.req0(rom_wr),
 	.ack0(sdrom_wrack),
 
-//if addr0 is sequential columns wrtitting use this	.addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
+//if addr0 is sequential columns wrtitting use this .addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
 	.addr1(rom_addr),
 	.din1(rom_wdata),
 	.dout1(sdrom_data),
@@ -687,9 +780,9 @@ wire	[24:0] loadrom_addr;
 wire	[15:0] loadrom_wdata;
 wire			 rom_loading, orom_load_wr, irom_load_wait;
 reg			 rom_load_wait;
-wire	[23:1] fl_addr;
-wire	[15:0] fl_dout;
-wire         fl_req, fl_ack;
+wire	[23:1] fl_ctrl_addr;
+wire	[15:0] fl_ctrl_data;
+wire         fl_ctrl_req, fl_ctrl_ack;
 
 rom_loader rom_loader
 (
@@ -702,13 +795,13 @@ rom_loader rom_loader
 	.oram_addr(loadrom_addr),
 	.oram_wrdata(loadrom_wdata),
 	.orom_load_wr(orom_load_wr), //active high when addr and data are ready
-	.irom_load_wait(rom_load_wait), //ex-ioctl_wait, if high, then stop next word reading from Flash while the other word is writting to SDRAM
+	.irom_load_wait(rom_load_wait), //ex-ioctl_wait, if high, then stop next word reading from Flash while the other word is written to SDRAM
 
 //Flash
-	.ofl_addr(fl_addr),
-	.ifl_data(fl_dout),
-	.ofl_req(fl_req),
-	.ifl_ack(fl_ack)
+	.ofl_addr(fl_ctrl_addr),
+	.ifl_data(fl_ctrl_data),
+	.ofl_req(fl_ctrl_req),
+	.ifl_ack(fl_ctrl_ack)
 );
 
 flash flash
@@ -724,10 +817,10 @@ flash flash
 	.oFL_WE_N(FL_WE_N),
 	.oFL_WP_N(FL_WP_N), // write protection is disabled (set to 1)
 	
-	.ifl_addr(fl_addr),
-	.ofl_dout(fl_dout),
-	.ifl_req(fl_req),
-	.ofl_ack(fl_ack)
+	.ifl_addr(fl_ctrl_addr),
+	.ofl_dout(fl_ctrl_data),
+	.ifl_req(fl_ctrl_req),
+	.ofl_ack(fl_ctrl_ack)
 );
 
 reg  rom_wr = 0;
@@ -740,9 +833,9 @@ reg [24:0] rom_sz;
 //1628B gamepad.bin assign rom_sz = 24'b000000000000011001011100;
 //512kB assign rom_sz = 24'b000001000000000000000000;
 //1MB   assign rom_sz = 24'b000010000000000000000000;
-//2MB
-   assign rom_sz = 24'b000100000000000000000000;
-//4MB   assign rom_sz = 24'b001000000000000000000000;
+//2MB   assign rom_sz = 24'b000100000000000000000000;
+//4MB   
+assign rom_sz = 24'b001000000000000000000000;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 	old_download <= cart_download;
@@ -759,6 +852,8 @@ always @(posedge clk_sys) begin
 	end
 end
 
+wire [3:0] hrgn = loadrom_wdata[3:0] - 4'd7;
+
 reg cart_hdr_ready = 0;
 reg hdr_j=0,hdr_u=0,hdr_e=0;
 always @(posedge clk_sys) begin
@@ -769,22 +864,29 @@ always @(posedge clk_sys) begin
 	if(old_download && ~cart_download) cart_hdr_ready <= 0;
 
 	if(orom_load_wr & cart_download) begin
-		if(loadrom_addr == 'h1F0 || loadrom_addr == 'h1F2) begin
-//?? Really need to check loadrom_addr == 'h1F0 ^there^?
+		if(loadrom_addr == 'h1F0) begin
+			if(loadrom_addr[7:0] == "J") hdr_j <= 1;
+			else if(loadrom_wdata[7:0] == "U") hdr_u <= 1;
+			else if(loadrom_wdata[7:0] == "E") hdr_e <= 1;
+			else if(loadrom_wdata[7:0] >= "0" && loadrom_wdata[7:0] <= "9") {hdr_e, hdr_u, hdr_j} <= {loadrom_wdata[3], loadrom_wdata[2], loadrom_wdata[0]};
+			else if(loadrom_wdata[7:0] >= "A" && loadrom_wdata[7:0] <= "F") {hdr_e, hdr_u, hdr_j} <= {      hrgn[3],       hrgn[2],       hrgn[0]};
+		end		
+		if(loadrom_addr == 'h1F2) begin
 			if(loadrom_wdata[7:0] == "J") hdr_j <= 1;
 			else if(loadrom_wdata[7:0] == "U") hdr_u <= 1;
-			else if(loadrom_wdata[7:0] >= "0" && loadrom_wdata[7:0] <= "Z") hdr_e <= 1;
+			else if(loadrom_wdata[7:0] == "E") hdr_e <= 1;
 		end
 		if(loadrom_addr == 'h1F0) begin
 			if(loadrom_wdata[15:8] == "J") hdr_j <= 1;
 			else if(loadrom_wdata[15:8] == "U") hdr_u <= 1;
-			else if(loadrom_wdata[15:8] >= "0" && loadrom_wdata[7:0] <= "Z") hdr_e <= 1;
+			else if(loadrom_wdata[15:8] == "E") hdr_e <= 1;
 		end
 		if(loadrom_addr == 'h200) cart_hdr_ready <= 1;
 	end
 end
 
 reg sram_quirk = 0;
+reg sram00_quirk = 0;
 reg eeprom_quirk = 0;
 reg fifo_quirk = 0;
 reg noram_quirk = 0;
@@ -799,7 +901,7 @@ always @(posedge clk_sys) begin
 	reg old_download;
 	old_download <= cart_download;
 
-	if(~old_download && cart_download) {fifo_quirk,eeprom_quirk,sram_quirk,noram_quirk,pier_quirk,svp_quirk,fmbusy_quirk,schan_quirk} <= 0;
+	if(~old_download && cart_download) {fifo_quirk,eeprom_quirk,sram_quirk,sram00_quirk,noram_quirk,pier_quirk,svp_quirk,fmbusy_quirk,schan_quirk} <= 0;
 
 	if(orom_load_wr & cart_download) begin
 		if(loadrom_addr == 'h182) cart_id[63:56] <= loadrom_wdata[15:8];
@@ -832,6 +934,7 @@ always @(posedge clk_sys) begin
 			else if(cart_id == "T-25073 ") fmbusy_quirk <= 1; // Hellfire JP
 			else if(cart_id == "MK-1137-") fmbusy_quirk <= 1; // Hellfire EU
 			else if(cart_id == "T-68???-") schan_quirk  <= 1; // Game no Kanzume Otokuyou
+			else if(cart_id == " GM 0000") sram00_quirk <= 1; // Sonic 1 Remastered
 			
 			// Lightgun device and timing offsets
 			if(cart_id == "MK-1533 ") begin						  // Body Count
@@ -880,8 +983,8 @@ always @(posedge clk_sys) begin
 		SERJOYSTICK_IN[5] <= USER_IN[6];//c TR GPIO7
 		SERJOYSTICK_IN[6] <= USER_IN[4];//  TH
 		SERJOYSTICK_IN[7] <= 0;
-		SER_OPT[0] <= status[4];
-		SER_OPT[1] <= ~status[4];
+		SER_OPT[0] <= ~status[4];
+		SER_OPT[1] <= status[4];
 		USER_OUT[1] <= SERJOYSTICK_OUT[0];
 		USER_OUT[0] <= SERJOYSTICK_OUT[1];
 		USER_OUT[5] <= SERJOYSTICK_OUT[2];
@@ -894,5 +997,32 @@ always @(posedge clk_sys) begin
 		USER_OUT <= '1;
 	end
 end
+
+////////////////  DEBUG /////////////////////////
+reg       VDP_BGA_EN = 1;
+reg       VDP_BGB_EN = 1;
+reg       VDP_SPR_EN = 1;
+//reg [1:0] VDP_GRID_EN = '0;
+reg       DBG_PAUSE_EN = 0;
+
+`ifdef DEBUG_BUILD
+
+always @(posedge clk_sys) begin
+	reg old_state = 0;
+
+	old_state <= ps2_key[10];
+
+	if((ps2_key[10] != old_state) && pressed) begin
+		casex(code)
+			'h003: begin VDP_BGA_EN <= ~VDP_BGA_EN; end 	// F5
+			'h00B: begin VDP_BGB_EN <= ~VDP_BGB_EN; end 	// F6
+			'h083: begin VDP_SPR_EN <= ~VDP_SPR_EN; end 	// F7
+			//'h00A: begin VDP_GRID_EN <= VDP_GRID_EN + 2'd1; end 	// F8
+			'h001: begin DBG_PAUSE_EN <= ~DBG_PAUSE_EN; end 	// F9
+		endcase
+	end
+end
+
+`endif
 
 endmodule

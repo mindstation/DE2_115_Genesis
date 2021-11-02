@@ -1,3 +1,24 @@
+//============================================================================
+//
+//  DE2-115 port MiSTer hardware abstraction module
+//  (c)2020-2021 Alexander Kirichenko
+//
+//  This program is free software; you can redistribute it and/or modify it
+//  under the terms of the GNU General Public License as published by the Free
+//  Software Foundation; either version 2 of the License, or (at your option)
+//  any later version.
+//
+//  This program is distributed in the hope that it will be useful, but WITHOUT
+//  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+//  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+//  more details.
+//
+//  You should have received a copy of the GNU General Public License along
+//  with this program; if not, write to the Free Software Foundation, Inc.,
+//  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+//============================================================================
+
 module sys_top
 (
 	/////////// CLOCK //////////
@@ -26,7 +47,7 @@ module sys_top
 	output		  AUDIO_L, //exGPIO[1], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
 	output		  AUDIO_R, //exGPIO[3], analog connection through RC-filter
 	
-	output  [1:0] LEDR, //LEDR[0] = led_user
+	output  [0:0] LEDR, //LEDR[0] = led_user
 	output  [1:0] LEDG,
 
 	// I2C for Audio codec configuration
@@ -63,11 +84,25 @@ module sys_top
 	input  [7:0]  FL_DQ
 );
 
-pll_sys pll_sys
-(
-	.inclk0(CLOCK2_50),
-	.c0(AUD_XCK), //Audio codec MCLK 18.0 MHz (MAX 18.51 MHz)
-);
+//////////////////////  LEDs/Buttons  ///////////////////////////////////
+
+assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
+assign LEDG[0] = led_disk[1] ? ~led_disk[0] : 1'b0;
+assign LEDR[0] = led_user;
+
+wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
+
+//exHSP, joystick bitmap (used only 11 bit from 32)
+//0      7 8      15       23       31
+//xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
+assign joystick_0 = {20'b00000000000000000000, 4'b0, SW[13],SW[14],SW[15],SW[16],~KEY[1],~KEY[2],SW[12],~KEY[0]};
+assign joystick_1 = 32'd0;
+assign joystick_2 = 32'd0;
+assign joystick_3 = 32'd0;
+assign joystick_4 = 32'd0;
+
+/////////////////////////  exHPS I/O  //////////////////////////////////
+
 
 //////////////////////  RESET  ///////////////////////////////////
 
@@ -94,24 +129,8 @@ end
 wire reset;
 assign reset = ~init_reset_n | reset_button_syn;
 
-//////////////////////  LEDs/Buttons  ///////////////////////////////////
-
-assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
-assign LEDG[0] = led_disk[1] ? ~led_disk[0] : 1'b0;
-assign LEDR[0] = led_user;
-
-wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
-
-//exHSP, joystick bitmap (used only 11 bit from 32)
-//0      7 8      15       23       31
-//xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
-assign joystick_0 = {20'b00000000000000000000, 4'b0, SW[13],SW[14],SW[15],SW[16],~KEY[1],~KEY[2],SW[12],~KEY[0]};
-assign joystick_1 = 32'd0;
-assign joystick_2 = 32'd0;
-assign joystick_3 = 32'd0;
-assign joystick_4 = 32'd0;
-
 /////////////////////////  VGA output  //////////////////////////////////
+
 wire [23:0] vga_data_sl;
 wire        vga_de_sl, vga_vs_sl, vga_hs_sl;
 
@@ -126,17 +145,22 @@ scanlines #(0) VGA_scanlines
 	.de_in(de_emu),
 
 	.dout(vga_data_sl),
-	.hs_out(VGA_HS),
-	.vs_out(VGA_VS)
+	.hs_out(vga_hs_sl),
+	.vs_out(vga_vs_sl)
 );
 
 wire [23:0] vga_o;
 vga_out vga_out
 (
-	.ypbpr_full(1'b0),
+	.clk(clk_vid),
+
 	.ypbpr_en(1'b0),
+	.hsync(vga_hs_sl),
+	.vsync(vga_vs_sl),
 	.dout(vga_o),
-	.din(vga_data_sl)
+	.din(vga_data_sl),
+	.hsync_o(VGA_HS),
+	.vsync_o(VGA_VS)
 );
 
 assign VGA_R  = vga_o[23:16];
@@ -148,6 +172,79 @@ assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
 assign VGA_SYNC_N = 0;
 
 assign VGA_CLK = clk_vid;
+
+/////////////////////////  Audio output  ////////////////////////////////
+
+// Codec DE2-115 configuring by I2C
+I2C_AV_Config  i2c_con
+(
+//      Host Side
+.iCLK(CLOCK2_50),
+.iRST_N(reset),
+//      I2C Side
+.oI2C_SCLK(I2C_SCLK),
+.oI2C_SDAT(I2C_SDAT)
+);
+
+wire clk_audio;
+
+pll_sys pll_sys
+(
+	.inclk0(CLOCK2_50),
+	.c0(AUD_XCK),  // Audio codec MCLK 18.0 MHz (MAX 18.51 MHz)
+	.c1(clk_audio)
+);
+
+reg [31:0] aflt_rate = 7056000;
+reg [39:0] acx  = 4258969;
+reg  [7:0] acx0 = 3;
+reg  [7:0] acx1 = 3;
+reg  [7:0] acx2 = 1;
+reg [23:0] acy0 = -24'd6216759;
+reg [23:0] acy1 =  24'd6143386;
+reg [23:0] acy2 = -24'd2023767;
+reg        areset = 0;
+reg [12:0] arc1x = 0;
+reg [12:0] arc1y = 0;
+reg [12:0] arc2x = 0;
+reg [12:0] arc2y = 0;
+
+wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
+wire [15:0] alsa_l = 0, alsa_r = 0;
+
+audio_out audio_out
+(
+	.reset(reset),
+	.clk(clk_audio),
+
+	.att(vol_att),
+	.mix(audio_mix),
+	.sample_rate(1'b0), //0 - 48KHz, 1 - 96KHz
+
+	.flt_rate(aflt_rate),
+	.cx(acx),
+	.cx0(acx0),
+	.cx1(acx1),
+	.cx2(acx2),
+	.cy0(acy0),
+	.cy1(acy1),
+	.cy2(acy2),
+
+	.is_signed(audio_s),
+	.core_l(audio_l),
+	.core_r(audio_r),
+
+	.alsa_l(alsa_l),
+	.alsa_r(alsa_r),
+
+	.i2s_bclk(AUD_BCLK),
+	.i2s_lrclk(AUD_DACLRCK),
+	.i2s_data(AUD_DACDAT),
+
+	.dac_l(AUDIO_L),
+	.dac_r(AUDIO_R)
+
+);
 
 ////////////////  User I/O  /////////////////////////
 // Open-drain User port (MiSTER SERJOYSTICK).
@@ -168,7 +265,7 @@ assign user_in[5] = GPIO[34];
 assign user_in[6] = GPIO[35];
 
 ///////////////////  User module connection ////////////////////////////
-wire [15:0] audio_ls, audio_rs;
+wire [15:0] audio_l, audio_r;
 wire        audio_s;
 wire  [1:0] audio_mix; // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 wire  [1:0] scanlines;
@@ -202,10 +299,14 @@ emu emu
 	.VGA_VS(vs_emu),
 	.VGA_DE(de_emu),    // = ~(VBlank | HBlank)
 	.VGA_F1(),
-	.VGA_SL(scanlines),
+	.VGA_SCALER(),      // VGA sginal selector: scaled or not (need some hdmi modules)
 
+	.HDMI_WIDTH(12'd0),
+	.HDMI_HEIGHT(12'd0),
+	.HDMI_FREEZE(),    // Video scaler ouput control (
+	
 	.CLK_VIDEO(clk_vid),
-	.CE_PIXEL(),	
+	.VGA_SL(scanlines),
 
 	.LED_USER(led_user),
 	// b[1]: 0 - LED status is system status OR'd with b[0]
@@ -214,8 +315,9 @@ emu emu
 	.LED_POWER(led_power),
 	.LED_DISK(led_disk),
 
-	.AUDIO_L(audio_ls),
-	.AUDIO_R(audio_rs),
+	.CLK_AUDIO(clk_audio),
+	.AUDIO_L(audio_l),
+	.AUDIO_R(audio_r),
 	.AUDIO_S(audio_s),
 	.AUDIO_MIX(audio_mix),
 
@@ -243,70 +345,6 @@ emu emu
 	.FL_OE_N(FL_OE_N),
 	.FL_WE_N(FL_WE_N),
 	.FL_WP_N(FL_WP_N)
-);
-
-//********************************Audio**************************************
-// Codec DE2-115 configuring by I2C
-I2C_AV_Config  i2c_con
-(
-//      Host Side
-.iCLK(CLOCK2_50),
-.iRST_N(reset),
-//      I2C Side
-.oI2C_SCLK(I2C_SCLK),
-.oI2C_SDAT(I2C_SDAT)
-);
-
-// Digital audio mixing
-wire        clk_audio = CLOCK2_50;
-wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
-wire [15:0] alsa_l = 0, alsa_r = 0;
-
-wire [15:0] audio_l, audio_l_pre;
-aud_mix_top audmix_l
-(
-	.clk(clk_audio),
-	.att(vol_att),
-	.mix(audio_mix),
-	.is_signed(audio_s),
-
-	.core_audio(audio_ls),
-	.pre_in(audio_r_pre),
-	.linux_audio(alsa_l),
-
-	.pre_out(audio_l_pre),
-	.out(audio_l)
-);
-
-wire [15:0] audio_r, audio_r_pre;
-aud_mix_top audmix_r
-(
-	.clk(clk_audio),
-	.att(vol_att),
-	.mix(audio_mix),
-	.is_signed(audio_s),
-
-	.core_audio(audio_rs),
-	.pre_in(audio_l_pre),
-	.linux_audio(alsa_r),
-
-	.pre_out(audio_r_pre),
-	.out(audio_r)
-);
-
-audio_out audio_out
-(
-	.reset(reset),
-	.clk(clk_audio),
-	.sample_rate(1'b0), //0 - 48KHz, 1 - 96KHz
-	.left_in(audio_l),
-	.right_in(audio_r),
-	.i2s_bclk(AUD_BCLK),
-	.i2s_lrclk(AUD_DACLRCK),
-	.i2s_data(AUD_DACDAT),
-	
-	.dac_l(AUDIO_L),
-	.dac_r(AUDIO_R)
 );
 
 endmodule
@@ -338,55 +376,6 @@ always @(posedge clk) begin
 	if(s2 != s1) cnt <= 0;
 
 	pol <= pos > neg;
-end
-
-endmodule
-
-//***********************************digital audio mixer module***********************************
-module aud_mix_top
-(
-	input             clk,
-
-	input       [4:0] att,
-	input       [1:0] mix,
-	input             is_signed,
-
-	input      [15:0] core_audio,
-	input      [15:0] linux_audio,
-	input      [15:0] pre_in,
-
-	output reg [15:0] pre_out,
-	output reg [15:0] out
-);
-
-reg [15:0] ca;
-always @(posedge clk) begin
-	reg [15:0] d1,d2,d3;
-
-	d1 <= core_audio; d2<=d1; d3<=d2;
-	if(d2 == d3) ca <= d2;
-end
-
-always @(posedge clk) begin
-	reg signed [16:0] a1, a2, a3, a4;
-
-	a1 <= is_signed ? {ca[15],ca} : {2'b00,ca[15:1]};
-	a2 <= a1 + {linux_audio[15],linux_audio};
-
-	pre_out <= a2[16:1];
-
-	case(mix)
-		0: a3 <= a2;
-		1: a3 <= $signed(a2) - $signed(a2[16:3]) + $signed(pre_in[15:2]);
-		2: a3 <= $signed(a2) - $signed(a2[16:2]) + $signed(pre_in[15:1]);
-		3: a3 <= {a2[16],a2[16:1]} + {pre_in[15],pre_in};
-	endcase
-
-	if(att[4]) a4 <= 0;
-	else a4 <= a3 >>> att[3:0];
-
-	//clamping
-	out <= ^a4[16:15] ? {a4[16],{15{a4[15]}}} : a4[15:0];
 end
 
 endmodule

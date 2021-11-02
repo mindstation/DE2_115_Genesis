@@ -108,9 +108,15 @@ entity vdp is
 		VRAM_SPEED  : in  std_logic := '1'; -- 0 - full speed, 1 - FIFO throttle emulation
 		VSCROLL_BUG : in  std_logic := '1'; -- 0 - use nicer effect, 1 - HW original
 		BORDER_EN   : in  std_logic := '1';  -- Enable border
+		CRAM_DOTS   : in  std_logic := '0';  -- Enable CRAM dots
 		OBJ_LIMIT_HIGH_EN : in std_logic := '0'; -- Enable more sprites and pixels per line
 
-		TRANSP_DETECT : out std_logic
+		TRANSP_DETECT : out std_logic;
+		
+		--debug
+		BGA_EN		: in  std_logic;
+		BGB_EN		: in  std_logic;
+		SPR_EN		: in  std_logic
 	);
 end vdp;
 
@@ -131,6 +137,7 @@ signal CRAM_WE_A		: std_logic;
 signal CRAM_WE_B		: std_logic;
 signal CRAM_Q_A		: std_logic_vector(8 downto 0);
 signal CRAM_Q_B		: std_logic_vector(8 downto 0);
+signal CRAM_DATA	: std_logic_vector(8 downto 0);
 
 signal VSRAM0_ADDR_A    : std_logic_vector( 4 downto 0);
 signal VSRAM0_ADDR_B    : std_logic_vector( 4 downto 0);
@@ -213,6 +220,7 @@ signal VINT_TG68_FF				: std_logic;
 signal VINT_T80_SET				: std_logic;
 signal VINT_T80_CLR				: std_logic;
 signal VINT_T80_FF				: std_logic;
+signal VINT_T80_WAIT				: unsigned(11 downto 0);
 
 signal INTACK_D					: std_logic;
 ----------------------------------------------------------------
@@ -830,6 +838,7 @@ port map(
 	q_b			=> CRAM_Q_B
 );
 CRAM_WE_B <= '0';
+CRAM_DATA <= CRAM_D_A when CRAM_WE_A = '1' and CRAM_DOTS = '1' else CRAM_Q_B;
 
 vsram0 : entity work.DualPortRAM
 generic map (
@@ -2373,7 +2382,8 @@ begin
 			end if;
 
 			if HV_HCNT = H_INT_POS then
-				if HV_VCNT = V_DISP_START + V_TOTAL_HEIGHT - 1 then --VDISP_START is negative
+				if HV_VCNT = V_DISP_START + V_TOTAL_HEIGHT - 1 and --VDISP_START is negative
+				   (V30 = '0' or PAL = '1') then -- NTSC with V30 will not reload the VCounter
 					--just after VSYNC
 					HV_VCNT <= V_DISP_START;
 				else
@@ -2456,9 +2466,7 @@ begin
 					FIELD <= not FIELD;
 					VINT_TG68_PENDING_SET <= '1';
 					VINT_T80_SET <= '1';
-				elsif HV_VCNT = V_INT_POS + 1
-				then
-					VINT_T80_CLR <= '1';
+					VINT_T80_WAIT <= x"975";	--2422 MCLK
 				end if;
 			end if;
 
@@ -2502,6 +2510,14 @@ begin
 				REFRESH_EN <= '1';
 			end if;
 
+		end if;
+		
+		if VINT_T80_WAIT = 0 then
+			if VINT_T80_FF = '1' then
+				VINT_T80_CLR <= '1';
+			end if;
+		else
+			VINT_T80_WAIT <= VINT_T80_WAIT - 1;
 		end if;
 	end if;
 end process;
@@ -2615,18 +2631,18 @@ begin
 				end if;
 
 				if OBJ_COLINFO2_Q(3 downto 0) /= "0000" and OBJ_COLINFO2_Q(6) = '1' and
-					(SHI='0' or OBJ_COLINFO2_Q(5 downto 1) /= "11111") then
+					(SHI='0' or OBJ_COLINFO2_Q(5 downto 1) /= "11111") and SPR_EN = '1' then
 					col := OBJ_COLINFO2_Q(5 downto 0);
-				elsif BGA_COLINFO_Q_B(3 downto 0) /= "0000" and BGA_COLINFO_Q_B(6) = '1' then
+				elsif BGA_COLINFO_Q_B(3 downto 0) /= "0000" and BGA_COLINFO_Q_B(6) = '1' and BGA_EN = '1' then
 					col := BGA_COLINFO_Q_B(5 downto 0);
-				elsif BGB_COLINFO_Q_B(3 downto 0) /= "0000" and BGB_COLINFO_Q_B(6) = '1' then
+				elsif BGB_COLINFO_Q_B(3 downto 0) /= "0000" and BGB_COLINFO_Q_B(6) = '1' and BGB_EN = '1' then
 					col := BGB_COLINFO_Q_B(5 downto 0);
 				elsif OBJ_COLINFO2_Q(3 downto 0) /= "0000" and
-					(SHI='0' or OBJ_COLINFO2_Q(5 downto 1) /= "11111") then
+					(SHI='0' or OBJ_COLINFO2_Q(5 downto 1) /= "11111") and SPR_EN = '1' then
 					col := OBJ_COLINFO2_Q(5 downto 0);
-				elsif BGA_COLINFO_Q_B(3 downto 0) /= "0000" then
+				elsif BGA_COLINFO_Q_B(3 downto 0) /= "0000" and BGA_EN = '1' then
 					col := BGA_COLINFO_Q_B(5 downto 0);
-				elsif BGB_COLINFO_Q_B(3 downto 0) /= "0000" then
+				elsif BGB_COLINFO_Q_B(3 downto 0) /= "0000" and BGB_EN = '1' then
 					col := BGB_COLINFO_Q_B(5 downto 0);
 				else
 					col := BGCOL;
@@ -2675,21 +2691,21 @@ begin
 				else case PIX_MODE is
 					when PIX_SHADOW =>
 						-- half brightness
-						FF_B <= '0' & CRAM_Q_B(8 downto 6);
-						FF_G <= '0' & CRAM_Q_B(5 downto 3);
-						FF_R <= '0' & CRAM_Q_B(2 downto 0);
+						FF_B <= '0' & CRAM_DATA(8 downto 6);
+						FF_G <= '0' & CRAM_DATA(5 downto 3);
+						FF_R <= '0' & CRAM_DATA(2 downto 0);
 
 					when PIX_NORMAL =>
 						-- normal brightness
-						FF_B <= CRAM_Q_B(8 downto 6) & '0';
-						FF_G <= CRAM_Q_B(5 downto 3) & '0';
-						FF_R <= CRAM_Q_B(2 downto 0) & '0';
+						FF_B <= CRAM_DATA(8 downto 6) & '0';
+						FF_G <= CRAM_DATA(5 downto 3) & '0';
+						FF_R <= CRAM_DATA(2 downto 0) & '0';
 					
 					when PIX_HIGHLIGHT =>
 						-- increased brightness
-						FF_B <= '0' & CRAM_Q_B(8 downto 6) + 7;
-						FF_G <= '0' & CRAM_Q_B(5 downto 3) + 7;
-						FF_R <= '0' & CRAM_Q_B(2 downto 0) + 7;
+						FF_B <= '0' & CRAM_DATA(8 downto 6) + 7;
+						FF_G <= '0' & CRAM_DATA(5 downto 3) + 7;
+						FF_R <= '0' & CRAM_DATA(2 downto 0) + 7;
 					end case;
 				end if;
 			
@@ -2909,7 +2925,10 @@ begin
 			if FIFO_DELAY(3) /= "00" then FIFO_DELAY(3) <= FIFO_DELAY(3) - 1; end if;
 		end if;
 
-		CRAM_WE_A <= '0';
+		-- Extend CRAM write enable for CRAM dots
+		if CE_PIX = '1' then
+			CRAM_WE_A <= '0';
+		end if;
 
 		SOVR_CLR <= '0';
 		SCOL_CLR <= '0';
@@ -2926,7 +2945,7 @@ begin
 						FIFO_ADDR( CONV_INTEGER( FIFO_WR_POS ) ) <= ADDR;
 						FIFO_DATA( CONV_INTEGER( FIFO_WR_POS ) ) <= DI;
 						FIFO_CODE( CONV_INTEGER( FIFO_WR_POS ) ) <= CODE(3 downto 0);
-						FIFO_DELAY( CONV_INTEGER( FIFO_WR_POS ) ) <= "10";
+						FIFO_DELAY( CONV_INTEGER( FIFO_WR_POS ) ) <= "00"; -- should be delayed, too? (no, according to Zsenilla by RSE demo)
 						FIFO_WR_POS <= FIFO_WR_POS + 1;
 						FIFO_QUEUE <= FIFO_QUEUE + 1;
 						ADDR <= ADDR + ADDR_STEP;

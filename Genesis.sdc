@@ -3,9 +3,6 @@ set_time_format -unit ns -decimal_places 3
 derive_pll_clocks
 derive_clock_uncertainty
 
-# Genesis.sv|pll1|clk[0] - clk_sys
-create_generated_clock -name {clk_sys} -source [get_pins {emu|pll|altpll_component|auto_generated|pll1|clk[0]}]
-
 set_multicycle_path -to {*Hq2x*} -setup 4
 set_multicycle_path -to {*Hq2x*} -hold 3
 
