@@ -26,12 +26,13 @@ module sys_top
 	input         CLOCK2_50,
 
 	// switch inputs
-	// SW[0] - RESET
-	// SW[16] - joystick_0_A, SW[15] - joystick_0_B, SW[14] - joystick_0_C, SW[13] - joystick_0_START, SW[12] - joystick_0_Left
-   input  [17:0] SW, // Toggle Switch[17:0]
+	// SW[16] - RESET
+	// SW[5] - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
+	// SW[12] - joystick_1_B, SW[11] - joystick_1_C, SW[10] - joystick_1_Left, SW[9] - joystick_1_Up, SW[8] - joystick_1_Down, SW[7] - joystick_1_Right
+   input  [17:0] SW, // Toggle Switches[17:0]
 
 	// button inputs
-	// KEY[0]  - joystick_0_Right, KEY[3] - RESET (01052021), KEY[2] - joystick_0_Up, KEY[1] - joystick_0_Down
+	// KEY[3] - joystick_0_START, KEY[2] - joystick_0_A, KEY[1] - joystick_1_START, KEY[0] - joystick_1_A
 	input   [3:0] KEY,
 	
 	output  [7:0] VGA_R,
@@ -44,10 +45,10 @@ module sys_top
 	output        VGA_SYNC_N,
 	
 	/////////// AUDIO //////////
-	output		  AUDIO_L, //exGPIO[1], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
-	output		  AUDIO_R, //exGPIO[3], analog connection through RC-filter
+	output		  AUDIO_L, // exGPIO[1], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
+	output		  AUDIO_R, // exGPIO[3], analog connection through RC-filter
 	
-	output  [0:0] LEDR, //LEDR[0] = led_user
+	output  [0:0] LEDR, // LEDR[0] = led_user
 	output  [1:0] LEDG,
 
 	// I2C for Audio codec configuration
@@ -72,7 +73,9 @@ module sys_top
 	output        DRAM_WE_N,
 
 	///////// USER IO ///////////
-	inout [35:29] GPIO,
+	inout [35:11] GPIO, // [35:29] - MiSTER serial
+	                    // [25], [27], [29], [31], [33], [35] - SMS gamepad 1 (UDRL12, active low)
+	                    // [11], [13], [15], [17], [19], [21] - SMS gamepad 2 (UDRL12, active low)
 	
 	// FLASH interface
 	output		  FL_RST_N,
@@ -95,8 +98,8 @@ wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
 //xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
-assign joystick_0 = {20'b00000000000000000000, 4'b0, SW[13],SW[14],SW[15],SW[16],~KEY[1],~KEY[2],SW[12],~KEY[0]};
-assign joystick_1 = 32'd0;
+assign joystick_0 = {20'b00000000000000000000, 4'b0, ~KEY[3],(SW[4] | ~GPIO[35]),(SW[5] | ~GPIO[33]),~KEY[2],(SW[2] | ~GPIO[25]),(SW[1] | ~GPIO[27]),(SW[3] | ~GPIO[29]),(SW[0] | ~GPIO[31])};
+assign joystick_1 = {20'b00000000000000000000, 4'b0, ~KEY[1],(SW[11] | ~GPIO[21]),(SW[12] | ~GPIO[19]),~KEY[0],(SW[9] | ~GPIO[11]),(SW[8] | ~GPIO[13]),(SW[10] | ~GPIO[17]),(SW[7] | ~GPIO[15])};
 assign joystick_2 = 32'd0;
 assign joystick_3 = 32'd0;
 assign joystick_4 = 32'd0;
@@ -122,7 +125,7 @@ end
 reg reset_button_syn = 0;
 reg resetb;
 always @(posedge CLOCK_50) begin
-	resetb  <= ~KEY[3] | SW[0];
+	resetb  <= SW[16];
 	reset_button_syn <= resetb;
 end
 

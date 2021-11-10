@@ -332,7 +332,7 @@ assign gamma_bus[7:0] = 8'b0;
 
 always @(posedge clk_sys)
 //           63               47                         31                         15                        0
-status <= 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_00_0_0_001_0;
+status <= 64'b0000000000000000_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_0_0_001_0;
 
 assign joystick_0 = JOY_0;
 assign joystick_1 = JOY_1;
@@ -352,7 +352,7 @@ assign ioctl_index = '0;
 //exHPS bus write status (1 bit). If HIGH then GG loading starts by cart_download. Also a GG module reset depends on it
 //exHPS bus read/write address: ioctl_addr[3:0] - set gg_code bits when d14 or less (15 not used), !ioctl_addr allow GG_RESET (system module)
 //ioctl_addr[24:1] used by sdram module as write address for sdram port0 when ROM uploads to RAM
-//ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded). Now rom_sz is set manually
+//ioctl_addr[24:0] was using by system module as ROMSZ (rom size) if old_download == 1 and cart_download == 0 (cart was loaded).
 //exHPS bus, ioctl_data (16 bit) is data source for loading cart ROM to SDRAM, GameGenue code and ROM header (region, cart quirks)
 
 //Also using for BRAM save/load, not used
@@ -826,23 +826,13 @@ flash flash
 reg  rom_wr = 0;
 wire sdrom_wrack;
 reg [24:0] rom_sz;
-//sytem module, ROM size
-//1104B hello.bin assign rom_sz = 24'b000000000000010001010000;
-//1000B psg_tone.bin assign rom_sz = 24'b000000000000001111101000;
-//1222B hello_z80.bin assign rom_sz = 24'b000000000000010011000110;
-//1628B gamepad.bin assign rom_sz = 24'b000000000000011001011100;
-//512kB assign rom_sz = 24'b000001000000000000000000;
-//1MB   assign rom_sz = 24'b000010000000000000000000;
-//2MB   assign rom_sz = 24'b000100000000000000000000;
-//4MB   
-assign rom_sz = 24'b001000000000000000000000;
 always @(posedge clk_sys) begin
 	reg old_download, old_reset;
 	old_download <= cart_download;
 	old_reset <= reset;
 
 	if(~old_reset && reset) rom_load_wait <= 0;
-//	if (old_download & ~cart_download) rom_sz <= loadrom_addr[24:0];
+	if (old_download & ~cart_download) rom_sz <= loadrom_addr[24:0];
 
 	if (cart_download & orom_load_wr) begin
 		rom_load_wait <= 1;
