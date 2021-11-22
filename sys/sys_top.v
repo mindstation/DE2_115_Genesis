@@ -2,10 +2,11 @@
 //
 //  DE2-115 port MiSTer hardware abstraction module
 //  (c)2020-2021 Alexander Kirichenko
+//  (c)2017-2020 Alexey Melnikov
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
-//  Software Foundation; either version 2 of the License, or (at your option)
+//  Software Foundation; either version 3 of the License, or (at your option)
 //  any later version.
 //
 //  This program is distributed in the hope that it will be useful, but WITHOUT
@@ -73,9 +74,9 @@ module sys_top
 	output        DRAM_WE_N,
 
 	///////// USER IO ///////////
-	inout [35:11] GPIO, // [35:29] - MiSTER serial
-	                    // [25], [27], [29], [31], [33], [35] - SMS gamepad 1 (UDRL12, active low)
-	                    // [11], [13], [15], [17], [19], [21] - SMS gamepad 2 (UDRL12, active low)
+	inout [35:0] GPIO, // [35], [33], [31], [29], [27], [25], [23] - MiSTER serial
+	                   // [12], [16], [20], [24], [28], [32] - SMS gamepad 1 (21UDLR, active low)
+	                   // [1], [3], [5], [7], [9], [11] - SMS gamepad 2 (21UDLR, active low)
 	
 	// FLASH interface
 	output		  FL_RST_N,
@@ -98,8 +99,8 @@ wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
 //xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
-assign joystick_0 = {20'b00000000000000000000, 4'b0, ~KEY[3],(SW[4] | ~GPIO[35]),(SW[5] | ~GPIO[33]),~KEY[2],(SW[2] | ~GPIO[25]),(SW[1] | ~GPIO[27]),(SW[3] | ~GPIO[29]),(SW[0] | ~GPIO[31])};
-assign joystick_1 = {20'b00000000000000000000, 4'b0, ~KEY[1],(SW[11] | ~GPIO[21]),(SW[12] | ~GPIO[19]),~KEY[0],(SW[9] | ~GPIO[11]),(SW[8] | ~GPIO[13]),(SW[10] | ~GPIO[17]),(SW[7] | ~GPIO[15])};
+assign joystick_0 = {20'b00000000000000000000, 4'b0, ~KEY[3],(SW[4] | ~GPIO[12]),(SW[5] | ~GPIO[16]),~KEY[2],(SW[2] | ~GPIO[20]),(SW[1] | ~GPIO[24]),(SW[3] | ~GPIO[28]),(SW[0] | ~GPIO[32])};
+assign joystick_1 = {20'b00000000000000000000, 4'b0, ~KEY[1],(SW[11] | ~GPIO[1]),(SW[12] | ~GPIO[3]),~KEY[0],(SW[9] | ~GPIO[5]),(SW[8] | ~GPIO[7]),(SW[10] | ~GPIO[9]),(SW[7] | ~GPIO[11])};
 assign joystick_2 = 32'd0;
 assign joystick_3 = 32'd0;
 assign joystick_4 = 32'd0;
@@ -251,20 +252,20 @@ audio_out audio_out
 
 ////////////////  User I/O  /////////////////////////
 // Open-drain User port (MiSTER SERJOYSTICK).
-assign GPIO[29] = !user_out[0] ? 1'b0 : 1'bZ;
-assign GPIO[30] = !user_out[1] ? 1'b0 : 1'bZ;
-assign GPIO[31] = !user_out[2] ? 1'b0 : 1'bZ;
-assign GPIO[32] = !user_out[3] ? 1'b0 : 1'bZ;
-assign GPIO[33] = !user_out[4] ? 1'b0 : 1'bZ;
-assign GPIO[34] = !user_out[5] ? 1'b0 : 1'bZ;
+assign GPIO[23] = !user_out[0] ? 1'b0 : 1'bZ;
+assign GPIO[25] = !user_out[1] ? 1'b0 : 1'bZ;
+assign GPIO[27] = !user_out[2] ? 1'b0 : 1'bZ;
+assign GPIO[29] = !user_out[3] ? 1'b0 : 1'bZ;
+assign GPIO[31] = !user_out[4] ? 1'b0 : 1'bZ;
+assign GPIO[33] = !user_out[5] ? 1'b0 : 1'bZ;
 assign GPIO[35] = !user_out[6] ? 1'b0 : 1'bZ;
 
-assign user_in[0] = GPIO[29];
-assign user_in[1] = GPIO[30];
-assign user_in[2] = GPIO[31];
-assign user_in[3] = GPIO[32];
-assign user_in[4] = GPIO[33];
-assign user_in[5] = GPIO[34];
+assign user_in[0] = GPIO[23];
+assign user_in[1] = GPIO[25];
+assign user_in[2] = GPIO[27];
+assign user_in[3] = GPIO[29];
+assign user_in[4] = GPIO[31];
+assign user_in[5] = GPIO[33];
 assign user_in[6] = GPIO[35];
 
 ///////////////////  User module connection ////////////////////////////
