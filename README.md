@@ -1,6 +1,7 @@
 # [SEGA Megadrive/Genesis](https://en.wikipedia.org/wiki/Sega_Genesis) for Terasic DE2-115 board.
 
 This is the port of the [Genesis_MiSTer](https://github.com/MiSTer-devel/Genesis_MiSTer) core.
+
 Genesis_MiSTer is based on fpgagen.
 
 fpgagen - a SEGA Megadrive/Genesis clone in a FPGA.
@@ -17,7 +18,7 @@ Write ROM to Flash memory of the DE2-115 by "Terasic-DE2-115 Control Panel":
 
 Load output_files/DE2_115_Genesis.sof to the board. ROM image will be copied automatically from Flash to SDRAM, while LEDR0 is glowing.
  
-ROM size will be taken from the ROM header. Only exception is Super Street Fighter 2 New Challengers. SSF2 NC has hardcoded 5 MB size in the core.
+ROM size will be taken by the ROM header. Only exception is Super Street Fighter 2 New Challengers. SSF2 NC has hardcoded 5 MB size in the core.
 
 
 ## Keys
@@ -35,6 +36,7 @@ Master System or compatible gamepads can be connected to the GPIO with 3.3V pull
 See connection diagram in "schematics/DE2-115 Master System gamepads adapter.pdf"
 
 JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (21UDLR, active low)
+
 JP5 pin  2, JP5 pin 4,  JP5 pin 6,  JP5 pin 8,  JP5 pin 10, JP5 pin 14 - SMS gamepad 2 (21UDLR, active low)
 
 Where SMS gamepad button 1 is Genesis B button.
@@ -50,7 +52,7 @@ output_files/DE2_115_Genesis.sof                        | FPGA configuration for
 rtl                                                     | The core modules
 schematics/DE2-115 Master System gamepads adapter.pdf   | Master System gamepads connection diagram
 simulation/testbench                                    | Project testbenches, run a "*.do" script in Altera ModelSim
-sys                                                     | MiSTER framework modules (it is project top-level module)
+sys                                                     | MiSTER framework modules (the project top-level module is here)
 DE2_115_Genesis.qpf                                     | Main Quartus project file
 DE2_115_Genesis.qsf                                     | Quartus project settings file
 Genesis.sdc                                             | Constraints for the core
