@@ -2,9 +2,12 @@
 
 This is the port of the [Genesis_MiSTer](https://github.com/MiSTer-devel/Genesis_MiSTer) core.
 
+Project was created with Quartus Prime 17.0.2 Lite Edition.
+
 Genesis_MiSTer is based on fpgagen.
 
 fpgagen - a SEGA Megadrive/Genesis clone in a FPGA.
+
 Copyright (c) 2010-2013 Gregory Estrade (greg@torlus.com)
 All rights reserved
 
@@ -18,7 +21,7 @@ Write ROM to Flash memory of the DE2-115 by "Terasic-DE2-115 Control Panel":
 
 Load output_files/DE2_115_Genesis.sof to the board. ROM image will be copied automatically from Flash to SDRAM, while LEDR0 is glowing.
  
-ROM size will be taken by the ROM header. Only exception is Super Street Fighter 2 New Challengers. SSF2 NC has hardcoded 5 MB size in the core.
+ROM size is set by the ROM header. Only exception is Super Street Fighter 2 New Challengers. SSF2 NC has hardcoded 5 MB size in the core.
 
 
 ## Keys

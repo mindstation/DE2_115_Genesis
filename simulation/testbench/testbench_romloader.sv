@@ -3,10 +3,11 @@
 module testbench_romloader();
 
 	logic 			clk_sys, clk_ram;
-	logic				reset;	
+	logic				reset;
+
+	logic				write_count_error = 0;
 	
 	wire	[24:0]	loadrom_addr;
-	logic	[24:0]	old_loadrom_addr;
 	wire	[15:0]	loadrom_wdata;
 	wire				rom_loading, orom_load_wr;
 	logic				rom_load_wait = 0;
@@ -16,8 +17,6 @@ module testbench_romloader();
 	wire				fl_ctrl_req, fl_ctrl_ack;
 	
 	wire	[15:0]	dram_data_dbg;
-	logic				old_wr_dbg;
-	wire				wr_dbg;
 	wire				dram_clk, dram_cke, dram_we_n;
 	wire				dram_ncs, dram_nras, dram_ncas;
 	wire	[12:0]	dram_addr;
@@ -31,13 +30,16 @@ module testbench_romloader();
 	wire	[22:0]	fl_addr;
 	wire				fl_rst_n, fl_ce_n, fl_oe_n, fl_we_n, fl_wp_n;
 	
-	logic				old_reset = 0;
+	wire				cart_download;	
+	logic				old_download = 0, old_reset = 0;
 	wire				sdrom_wrack;
-	logic				rom_wr = 0;
+	logic				old_sdrom_wrack = 0;
+	logic				rom_wr = 0, old_rom_wr = 0;
+	logic	[24:0]	rom_sz;
 	
 	//Make 'diff SDRAMdata.hex mt48lc4m16a2_data.hex' for RAM write checking
-	//Compare SDRAMdata.hex or mt48lc4m16a2_data.hex after "xx" string filtering with ROM.hex for rom_loader work checking
-	//See ROM_path in the flash_dummy module
+	//Compare SDRAMdata.hex or mt48lc4m16a2_data.hex with ROM.hex for rom_loader work checking
+	//See ROM.hex path in the flash_dummy module
 	string SDRAMdata_out_path = "/home/DE2_115_Genesis/simulation/testbench/SDRAMdata.hex";
 	string mt48lc4m16a2_data_path = "/home/DE2_115_Genesis/simulation/testbench/mt48lc4m16a2_data.hex";	
 	
@@ -73,7 +75,7 @@ module testbench_romloader();
 	);
 	
 	mt48lc4m16a2 sdramDevice(
-	.Dq_wr_dbg(dram_data_dbg), .wr_dbg(wr_dbg),
+	.Dq_wr_dbg(dram_data_dbg),
 	.Dq(dram_dq), .Addr(dram_addr), .Ba(dram_ba),
 	.Clk(dram_clk), .Cke(dram_cke),
 	.Cs_n(dram_ncs), .Ras_n(dram_nras), .Cas_n(dram_ncas), .We_n(dram_we_n),
@@ -82,20 +84,27 @@ module testbench_romloader();
 	
 	flash_dummy flashDevice(
 		.oFL_DQ(fl_dq), .iFL_ADDR(fl_addr), .iFL_RST_N(fl_rst_n), .iFL_CE_N(fl_ce_n), .iFL_OE_N(fl_oe_n), .iFL_WE_N(fl_we_n), .iFL_WP_N(fl_wp_n)
-	);
+	);	
 	
-	always @(posedge clk_sys) begin		
-		old_reset <= reset;
+	assign cart_download = rom_loading;
+	always @(posedge clk_sys)
+		begin
+			old_download <= cart_download;
+			old_reset <= reset;
 
-		if(~old_reset && reset) rom_load_wait <= 0;
+			if(~old_reset && reset) rom_load_wait <= 0;
+			if (old_download & ~cart_download) rom_sz <= loadrom_addr[24:0];
 
-		if (rom_loading & orom_load_wr) begin
-			rom_load_wait <= 1;
-			rom_wr <= ~rom_wr;
-		end else if(rom_load_wait && (rom_wr == sdrom_wrack)) begin
-			rom_load_wait <= 0;
+			if (cart_download & orom_load_wr)
+				begin
+					rom_load_wait <= 1;
+					rom_wr <= ~rom_wr;
+				end
+				else if(rom_load_wait && (rom_wr == sdrom_wrack))
+							begin
+								rom_load_wait <= 0;
+							end
 		end
-	end
 	
 	//initilize testbench
 	int fileSDRAMdata_out;
@@ -136,28 +145,50 @@ module testbench_romloader();
 	//check results
 	always @(negedge clk_sys)
 		begin
-			if(old_loadrom_addr !== loadrom_addr)
+			if(rom_wr !== old_rom_wr)
 				begin
-					old_loadrom_addr <= loadrom_addr;
+					old_rom_wr <= rom_wr;
+					//write SDRAM output of rom_loader
 					$fdisplay(fileSDRAMdata_out, "%h", loadrom_wdata[7:0]);
 					$fdisplay(fileSDRAMdata_out, "%h", loadrom_wdata[15:8]);
+					
+					//check ROM data input-output of rom_loader
+					if (loadrom_wdata !== fl_ctrl_data)
+						begin
+							write_count_error = write_count_error + 1;
+							$display ("ERROR! Flash word at %h address is %h and rom_loader word is %h. They are different!", fl_addr, fl_ctrl_data, loadrom_wdata);
+						end
 				end
 
-			if (fl_addr == 23'd8388607)
+			if ((fl_addr + 1) == rom_sz[22:0])
 				begin
-					$display ("All %d bytes from flash was readed.", fl_addr);
+					$display ("All %d ROM bytes was readed from flash with %d errors.", rom_sz, write_count_error);
 					$finish;
 				end
+			
+			if (fl_addr > rom_sz[22:0])				
+				begin
+					$display ("ERROR! fl_addr %d is out of ROM.", fl_addr);
+					$finish;
+				end
+				
+			
 		end
 		
-	//check RAM content	
+	//write RAM content
 	always @(negedge dram_clk)
 		begin
-			if (old_wr_dbg !== wr_dbg)
+			if (old_sdrom_wrack !== sdrom_wrack)
 				begin
-					old_wr_dbg <= wr_dbg;
+					old_sdrom_wrack <= sdrom_wrack;
 					$fdisplay(mt48lc4m16a2_data, "%h", dram_data_dbg[15:8]);
 					$fdisplay(mt48lc4m16a2_data, "%h", dram_data_dbg[7:0]);
+
+					if ({dram_data_dbg[7:0], dram_data_dbg[15:8]} !== fl_ctrl_data)
+						begin
+							write_count_error = write_count_error + 1;
+							$display ("ERROR! Flash word at %h address is %h and SDRAM word is %h. They are different!", fl_addr, fl_ctrl_data, {dram_data_dbg[7:0], dram_data_dbg[15:8]});
+						end
 				end
 		end
 		
@@ -166,6 +197,7 @@ module testbench_romloader();
 		begin
 			#(64'd2000000000);
 			$fclose (fileSDRAMdata_out); $fclose (mt48lc4m16a2_data);
+			$display ("Testbench time out! It's working 2 seconds.");
 			$finish;
 		end
 

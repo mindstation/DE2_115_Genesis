@@ -39,7 +39,7 @@
 
 `timescale 1ns / 1ps
 
-module mt48lc4m16a2 (Dq_wr_dbg, wr_dbg, Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas_n, We_n, Dqm);
+module mt48lc4m16a2 (Dq_wr_dbg, Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas_n, We_n, Dqm);
 
     parameter addr_bits =      12;
     parameter data_bits =      16;
@@ -47,7 +47,6 @@ module mt48lc4m16a2 (Dq_wr_dbg, wr_dbg, Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas
     parameter mem_sizes = 1048575;
 
     output reg [data_bits - 1 : 0] Dq_wr_dbg;
-	 output reg                     wr_dbg = 0;
 	 
     inout     [data_bits - 1 : 0] Dq;
     input     [addr_bits - 1 : 0] Addr;
@@ -937,7 +936,6 @@ module mt48lc4m16a2 (Dq_wr_dbg, wr_dbg, Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas
                 2'b11 : Bank3 [{Row, Col}] = Dq_dqm;
             endcase
 
-				wr_dbg = ~wr_dbg;
 				
             // Display debug message
             if (Dqm !== 2'b11) begin

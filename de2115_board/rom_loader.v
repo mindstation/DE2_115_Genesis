@@ -49,8 +49,8 @@ localparam INIT					= 3'b000,
 			  STOP					= 3'b111;
 
 reg [2:0]  fsm_state;
-reg [24:0] addr_counter;
-reg [31:0] rom_max_addres;
+reg [24:0] addr_counter = 25'd0;
+reg [31:0] rom_max_address;
 reg [63:0] cart_id;
 
 // oram_addr[24:23] is a bank number, oram_addr[13:1] is a row number, oram_addr[22:14] is a column number
@@ -66,7 +66,7 @@ always @(posedge iclk)
 				INIT:
 					begin
 						addr_counter <= 25'd0;
-						rom_max_addres <= 32'h200; // ROM header max address, it will be changed to actual ROM max address at loading
+						rom_max_address <= 32'h200; // ROM header max address, it will be changed to actual ROM max address at loading
 						oloading <= 1'b1;
 						
 						fsm_state <= FL_READ;
@@ -100,23 +100,26 @@ always @(posedge iclk)
 						if(addr_counter == 'h186) cart_id[39:24] <= {ifl_data[7:0],ifl_data[15:8]};
 						if(addr_counter == 'h188) cart_id[23:08] <= {ifl_data[7:0],ifl_data[15:8]};
 						if(addr_counter == 'h18A) cart_id[07:00] <= ifl_data[7:0];
-						if((addr_counter == 'h18C) && (cart_id == "T-12056 ")) rom_max_addres   <= 32'h4FFFFF; // SUPER STREET FIGHTER2 New Challengers
+						if((addr_counter == 'h18C) && (cart_id == "T-12056 ")) rom_max_address   <= 32'h4FFFFF; // SUPER STREET FIGHTER2 New Challengers
 						
 						if (cart_id != "T-12056 ")
 							begin
 								if (addr_counter == 25'h1A4)
-									rom_max_addres[31:16] <= {ifl_data[7:0],ifl_data[15:8]}; // Take max ROM address from the header
+									rom_max_address[31:16] <= {ifl_data[7:0],ifl_data[15:8]}; // Take max ROM address from the header
 								if (addr_counter == 25'h1A6)
-									rom_max_addres[15:0] <= {ifl_data[7:0],ifl_data[15:8]};  // Take max ROM address from the header
+									rom_max_address[15:0] <= {ifl_data[7:0],ifl_data[15:8]};  // Take max ROM address from the header
 							end
 					
-						if (addr_counter < rom_max_addres[24:0])
+						if ((addr_counter + 1'b1) < rom_max_address[24:0])                   // Two bytes reads from flash
 							begin
 								addr_counter <= addr_counter + 25'd2;
 								fsm_state <= FL_READ;
 							end
 						else
-							fsm_state <= STOP;
+							begin
+								addr_counter <= rom_max_address[24:0] + 1'b1;                // ROM filesize counts from 1, but ROM address from 0
+								fsm_state <= STOP;
+							end
 					end
 				STOP:
 					oloading <= 1'b0;
