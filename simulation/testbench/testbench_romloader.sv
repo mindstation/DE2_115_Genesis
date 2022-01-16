@@ -68,7 +68,7 @@ module testbench_romloader();
 	);	
 	
 	flash flashCtrl(
-		.iclk(clk_sys), .ireset(reset),
+		.iclk(clk_sys),
 	
 		.ifl_addr(fl_ctrl_addr), .ofl_dout(fl_ctrl_data), .ifl_req(fl_ctrl_req), .ofl_ack(fl_ctrl_ack),
 		.iFL_DQ(fl_dq), .oFL_ADDR(fl_addr), .oFL_RST_N(fl_rst_n), .oFL_CE_N(fl_ce_n), .oFL_OE_N(fl_oe_n), .oFL_WE_N(fl_we_n), .oFL_WP_N(fl_wp_n)

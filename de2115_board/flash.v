@@ -51,7 +51,7 @@ localparam	RESET = 6'd0,
 				NEXT_BYTE_ADDR = READ_BYTE + 6'd1,
 				NEXT_BYTE = NEXT_BYTE_ADDR + READ_LATENCY;
 				
-reg [5:0]  fsm_state;
+reg [5:0]  fsm_state = 6'd0;
 reg [7:0]  fstbyte;
 
 assign oFL_WP_N = 1'b1;

@@ -307,7 +307,7 @@ emu emu
 
 	.HDMI_WIDTH(12'd0),
 	.HDMI_HEIGHT(12'd0),
-	.HDMI_FREEZE(),    // Video scaler ouput control (
+	.HDMI_FREEZE(),    // Video scaler ouput control
 	
 	.CLK_VIDEO(clk_vid),
 	.VGA_SL(scanlines),
