@@ -1,3 +1,5 @@
+history
+rtl_work
 db
 greybox_tmp
 incremental_db
@@ -9,7 +11,10 @@ output_files
 # but *.sof and *.jic is useful for FPGA loading
 !output_files/*.sof
 !output_files/*.jic
+!output_files/*.cof
 
+modelsim.*
+vsim.*
 hc_output
 scaler
 hps_isw_handoff

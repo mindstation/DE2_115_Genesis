@@ -67,7 +67,7 @@ GPIO connection list for player 1 and player 2 gamepads:
 * JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (21UDLR, active low)
 * JP5 pin  2, JP5 pin 4,  JP5 pin 6,  JP5 pin 8,  JP5 pin 10, JP5 pin 14 - SMS gamepad 2 (21UDLR, active low)
 
-Master System gamepad pinout.
+Master System gamepad pinout:
 
 pin 9 - button 2, pin 6 - button 1, pin 1 - Up, pin 2 - Down, pin 3 - Left, pin 4 - Right, pin 8 - GND
 
@@ -81,6 +81,7 @@ File name                                               | File description
 --------------------------------------------------------|----------------------------------------------------------------------------
 de2115_board                                            | The folder holds DE2-115 specific modules
 output_files/DE2_115_Genesis.sof                        | FPGA configuration for loading by JTAG
+output_files/DE2_115_Genesis.jic                        | Persistent FPGA configuration
 rtl                                                     | The Genesis/Mega Drive core modules
 schematics                                              | Genesis and Master System gamepads connection diagrams
 simulation/testbench                                    | Project testbenches, open a "*.do" script in Altera ModelSim for simulation
