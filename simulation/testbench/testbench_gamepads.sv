@@ -7,7 +7,7 @@ module testbench_gamepads();
 	logic [2:0]		select_count = '0;
 	
 	logic	[11:0]	dummy_buttons = '0;
-	logic	[1:0] 	pad_type = 2'd1;
+	logic	[1:0] 	pad_type = '0;
 	logic				pad_hold_buttons = '0;
 	
 	wire				genpad_select;
