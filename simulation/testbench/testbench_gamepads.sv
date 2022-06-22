@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+`timescale 1ns/1ns
 
 module testbench_gamepads();
 
@@ -7,7 +7,7 @@ module testbench_gamepads();
 	logic [2:0]		select_count = '0;
 	
 	logic	[11:0]	dummy_buttons = '0;
-	logic	[1:0] 	pad_type = '0;
+	logic	[1:0] 	pad_type = '0, old_pad_type;
 	logic				pad_hold_buttons = '0;
 	
 	wire				genpad_select;
@@ -40,7 +40,9 @@ module testbench_gamepads();
 
 ////// initilize testbench
 	initial begin
-		$timeformat(-12, 0, " ps"); // Print simulation time in ps
+		$timeformat(-12, 0, " ns"); // Print simulation time in ns
+		
+		old_pad_type <= pad_type;
 		
 		if (pad_type === '0) // MasterSystem PAD
 			$display ("pad_type is %b. MasterSystem PAD testing.", pad_type);
@@ -183,15 +185,15 @@ module testbench_gamepads();
 				end
 			end
 			2'b01: begin // 3-buttons Genesis PAD
-				if (genpad_select) begin
+				if (~genpad_select) begin // used previous genpad_select, because genpad_decoded shows previous dummy_buttons state
 					if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]}) begin
-						$display ("%t: Gamepad decoding ERROR! genpad_decoded{[6:5],[3:0]}=%b is not equal to dummy_buttons{[6:5],[3:0]}=%b when genpad_select=%b", $time, genpad_decoded, dummy_buttons, genpad_select);
+						$display ("%t: Gamepad decoding ERROR! genpad_decoded{[6:5],[3:0]}=%b is not equal to dummy_buttons{[6:5],[3:0]}=%b after genpad_select=%b", $time, genpad_decoded, dummy_buttons, ~genpad_select);
 						decode_error_count <= decode_error_count + 1'd1;
 					end
 				end
 				else begin
 					if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]} !== {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]}) begin
-						$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b when genpad_select=%b", $time, genpad_decoded, dummy_buttons, genpad_select);
+						$display ("%t: Gamepad decoding ERROR! genpad_decoded{[7],[4],[3:2]}=%b is not equal to dummy_buttons{[7],[4],[3:2]}=%b after genpad_select=%b", $time, genpad_decoded, dummy_buttons, ~genpad_select);
 						decode_error_count <= decode_error_count + 1'd1;
 					end
 				end
@@ -205,11 +207,17 @@ module testbench_gamepads();
 
 	assign bit_genpad_select = genpad_select;
 	always @(bit_genpad_select) begin
-		select_count <= select_count + 1'd1;
+		if (old_pad_type == pad_type) begin
+			select_count <= select_count + 1'd1;
 
-		if (select_count == 3'd5 && genpad_type_detected !== pad_type) begin // Fifth select is time for detecting PAD type (see genesis_gamepad module)
-			$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
-			genpad_type_error_count <= genpad_type_error_count + 1'd1;
+			if (select_count == 3'd5 && genpad_type_detected !== pad_type) begin // Fifth select is time for detecting PAD type (see genesis_gamepad module)
+				$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
+				genpad_type_error_count <= genpad_type_error_count + 1'd1;
+			end
+		end
+		else begin
+			old_pad_type <= pad_type;
+			select_count <= '0;
 		end
 
 	end
