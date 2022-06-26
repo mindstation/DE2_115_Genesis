@@ -3,4 +3,4 @@ set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) I
 set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) rom_loader.v ]
 set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) flash.v ]
 set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) ex_hps_io.v ]
-set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) genesis_gamepad.v ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) genesis_gamepads.v ]
