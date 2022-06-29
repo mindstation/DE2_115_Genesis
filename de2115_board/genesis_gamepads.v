@@ -59,7 +59,7 @@ module genesis_gamepads (
 					padread_state <= padread_state + 3'd1;
 				end
 				3'd4: begin
-					if (~oGENPAD_SELECT & type_button3 & ~iGENPAD[4] & ~iGENPAD[3] & ~iGENPAD[2] & ~iGENPAD[1]) begin // If all D-PAD was pressed, then it's 6-buttons PAD
+					if (~oGENPAD_SELECT & type_button3 & ~iGENPAD[3] & ~iGENPAD[2] & ~iGENPAD[1] & ~iGENPAD[0]) begin // If all D-PAD was pressed, then it's 6-buttons PAD
 						type_button6 <= 1'b1;
 						{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4];
 						oGENPAD_SELECT <= ~oGENPAD_SELECT;
@@ -78,7 +78,7 @@ module genesis_gamepads (
 				end
 				3'd5: begin
 					if (oGENPAD_SELECT & type_button6) begin
-						{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= ~iGENPAD; // Extra buttons: Z, Y, X, MODE
+						{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= ~iGENPAD; // C, B and extra buttons: Z, Y, X, MODE
 						oGENPAD_SELECT <= ~oGENPAD_SELECT;
 					end
 					
@@ -93,8 +93,8 @@ module genesis_gamepads (
 					padread_state <= padread_state + 3'd1;
 				end
 				3'd6: begin
-					if (type_button3 | type_button6) begin
-						{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4]; // Start, A and third-party controllers button. Only Start and A used here
+					if (type_button3) begin // This state gives same START and A buttons for 3-buttons and 6-buttons PAD
+						{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4]; // Start, A and third-party controllers button. Only Start and A used here by genesis_gamepads.
 						oGENPAD_SELECT <= ~oGENPAD_SELECT;
 					end
 					
