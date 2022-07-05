@@ -7,7 +7,7 @@ module testbench_gamepads();
 	logic [5:0]		decode_error_count = '0, genpad_type_error_count = '0;
 	logic [2:0]		select_count = '0;
 	
-	logic	[11:0]	dummy_buttons = '0;
+	logic	[11:0]	dummy_buttons = '0; // {Z,Y,X,M,S,C/2,B/1,A,U,D,L,R}, MasterSystem PAD button 2 is used as C button, button 1 is used as B button
 	logic	[1:0] 	pad_type = '0, old_pad_type;
 	logic				pad_hold_buttons = '0;
 	
@@ -194,7 +194,7 @@ module testbench_gamepads();
 					$finish;
 				end
 			endcase
-			#144; // Button press latency 144ns, for a fast simulation
+			#288; // Button press latency 288ns, for a fast simulation
 		end
 		else begin
 			pad_hold_buttons <= '0;
@@ -203,6 +203,18 @@ module testbench_gamepads();
 	end
 		
 ////// results check
+	always @(genpad_decoded) begin // If all D-PAD is pressed and pad_type=00 or 01, then dut doesn't update genpad_decoded
+		if (pad_type == 2'b00) begin // Master System PAD
+			if (genpad_decoded !== dummy_buttons) begin
+				$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b", $time, genpad_decoded, dummy_buttons);
+				decode_error_count <= decode_error_count + 1'd1;
+			end
+		end
+
+		old_genpad_decoded <= genpad_decoded;
+
+	end
+
 	always @(genpad_select) begin
 		if (nreset) begin
 			if (old_pad_type == pad_type) begin
@@ -216,14 +228,9 @@ module testbench_gamepads();
 				old_pad_type <= pad_type;
 				select_count <= '0;
 			end
-			if (old_genpad_decoded != genpad_decoded) begin
+
+			if (old_genpad_decoded != genpad_decoded) begin // If all D-PAD is pressed and pad_type=00 or 01, then dut doesn't update genpad_decoded
 				case (pad_type)
-					2'b00: begin // Master System PAD
-						if (genpad_decoded !== dummy_buttons) begin
-							$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b", $time, genpad_decoded, dummy_buttons);
-							decode_error_count <= decode_error_count + 1'd1;
-						end
-					end
 					2'b01: begin // 3-buttons Genesis PAD
 						if (~genpad_select) begin // used previous genpad_select, because genpad_decoded shows previous dummy_buttons state
 							if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]}) begin
@@ -269,8 +276,6 @@ module testbench_gamepads();
 						end
 					end
 				endcase
-				
-				old_genpad_decoded <= genpad_decoded;
 			end
 		end
 		else begin
