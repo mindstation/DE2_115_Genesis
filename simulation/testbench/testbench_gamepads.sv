@@ -30,6 +30,22 @@ module testbench_gamepads();
 	
 	endfunction
 	
+	function [3:0] dpad_generator;
+		input [3:0] id_pad;
+		
+		case (id_pad[3:0]) // It is impossible to press Left and Right at the same time without Up and Down
+			4'b0000: dpad_generator[3:0] = 4'b0001; // genesis_gamepad controller uses Left+Right pattern as genesis PAD sign
+			4'b0001: dpad_generator[3:0] = 4'b0101;
+			4'b0101: dpad_generator[3:0] = 4'b1001;
+			4'b1001: dpad_generator[3:0] = 4'b0010;
+			4'b0010: dpad_generator[3:0] = 4'b0110;
+			4'b0110: dpad_generator[3:0] = 4'b1010;
+			4'b1010: dpad_generator[3:0] = 4'b1111;
+			4'b1111: dpad_generator[3:0] = '0;
+			default: dpad_generator[3:0] = 'x;
+		endcase
+	endfunction
+	
 	// instatiate device to be tested
 	genesis_gamepads dut (
 		.iCLK(fpga_clk_50),
@@ -96,19 +112,9 @@ module testbench_gamepads();
 					if	(pad_hold_buttons) begin
 						if (dummy_buttons[3:0] == 4'b1111)
 							dummy_buttons[6:5] <= dummy_buttons[6:5] + 1'b1;
-			
-						case (dummy_buttons[3:0]) // It is impossible to press Left and Right at the same time without Up and Down
-							4'b0000: dummy_buttons[3:0] <= 4'b0001; // genesis_gamepad controller uses Left+Right pattern as genesis PAD sign
-							4'b0001: dummy_buttons[3:0] <= 4'b0101;
-							4'b0101: dummy_buttons[3:0] <= 4'b1001;
-							4'b1001: dummy_buttons[3:0] <= 4'b0010;
-							4'b0010: dummy_buttons[3:0] <= 4'b0110;
-							4'b0110: dummy_buttons[3:0] <= 4'b1010;
-							4'b1010: dummy_buttons[3:0] <= 4'b1111;
-							4'b1111: dummy_buttons[3:0] <= '0;
-							default: dummy_buttons[3:0] <= 'x;
-						endcase
-						
+
+						dummy_buttons[3:0] <= dpad_generator(dummy_buttons[3:0]);
+
 						if (dummy_buttons[6:5] == '1 && dummy_buttons[3:0] == '1) begin // All buttons with and without hold were tested
 							pad_hold_buttons <= ~pad_hold_buttons;
 							pad_type <= pad_type + 2'd1;
@@ -132,19 +138,9 @@ module testbench_gamepads();
 					if	(pad_hold_buttons) begin
 						if (dummy_buttons[3:0] == 4'b1111)
 							dummy_buttons[7:4] <= dummy_buttons[7:4] + 1'b1;
-			
-						case (dummy_buttons[3:0]) // It is impossible to press Left and Right at the same time without Up and Down
-							4'b0000: dummy_buttons[3:0] <= 4'b0001; // genesis_gamepad controller uses Left+Right pattern as genesis PAD sign
-							4'b0001: dummy_buttons[3:0] <= 4'b0101;
-							4'b0101: dummy_buttons[3:0] <= 4'b1001;
-							4'b1001: dummy_buttons[3:0] <= 4'b0010;
-							4'b0010: dummy_buttons[3:0] <= 4'b0110;
-							4'b0110: dummy_buttons[3:0] <= 4'b1010;
-							4'b1010: dummy_buttons[3:0] <= 4'b1111;
-							4'b1111: dummy_buttons[3:0] <= '0;
-							default: dummy_buttons[3:0] <= 'x;
-						endcase
-						
+
+						dummy_buttons[3:0] <= dpad_generator(dummy_buttons[3:0]);
+
 						if (dummy_buttons[7:0] == '1) begin // All buttons with and without hold were tested
 							pad_hold_buttons <= ~pad_hold_buttons;
 							pad_type <= pad_type + 2'd1;
@@ -168,19 +164,9 @@ module testbench_gamepads();
 					if	(pad_hold_buttons) begin
 						if (dummy_buttons[3:0] == 4'b1111)
 							dummy_buttons[11:4] <= dummy_buttons[11:4] + 1'b1;
-			
-						case (dummy_buttons[3:0]) // It is impossible to press Left and Right at the same time without Up and Down
-							4'b0000: dummy_buttons[3:0] <= 4'b0001; // genesis_gamepad controller uses Left+Right pattern as genesis PAD sign
-							4'b0001: dummy_buttons[3:0] <= 4'b0101;
-							4'b0101: dummy_buttons[3:0] <= 4'b1001;
-							4'b1001: dummy_buttons[3:0] <= 4'b0010;
-							4'b0010: dummy_buttons[3:0] <= 4'b0110;
-							4'b0110: dummy_buttons[3:0] <= 4'b1010;
-							4'b1010: dummy_buttons[3:0] <= 4'b1111;
-							4'b1111: dummy_buttons[3:0] <= '0;
-							default: dummy_buttons[3:0] <= 'x;
-						endcase
-						
+
+						dummy_buttons[3:0] <= dpad_generator(dummy_buttons[3:0]);
+
 						if (dummy_buttons[11:0] == '1) begin // All buttons for all PAD types were tested
 							pad_hold_buttons <= ~pad_hold_buttons;
 							pad_type <= pad_type + 2'd1;
