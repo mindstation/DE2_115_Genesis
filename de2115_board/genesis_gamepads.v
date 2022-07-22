@@ -29,78 +29,64 @@ module genesis_gamepads (
 	output reg [11:0]	oGENPAD_DECODED = 12'b0 // {Z,Y,X,M,S,C,B,A,U,D,L,R}
 );
 
-	reg [2:0]	padread_state = 3'd0;
+	reg [1:0]	padread_state = 2'd0;
 	reg			type_button3, type_button6;
 	
 	always @(posedge iCLK) begin
 		
-		if (iN_RESET)
+		if (iN_RESET) begin
 			case (padread_state)
-				3'd0, 3'd2:
-					if (iGENPAD[3:0] !== 4'b0000) begin // Original D-PAD can't be pressed in all directions, skip reading (pressed is 0, inverted logic)
-						if (~oGENPAD_SELECT & ~iGENPAD[1] & ~iGENPAD[0]) begin // If Left and Right pressed together, then it's 3-buttons PAD
-							type_button3 <= 1'b1;
+				3'd0: begin
+					if (oGENPAD_SELECT == 1'b0) begin
+						if (iGENPAD[3:2] != 2'b00 && iGENPAD[1:0] == 2'b00) begin // If Left and Right pressed together, then it's 3-buttons PAD (pressed is 0, inverted logic)
 							{oGENPAD_DECODED[7],oGENPAD_DECODED[4],oGENPAD_DECODED[3:2]} <= ~iGENPAD[5:2];
-							oGENPAD_SELECT <= ~oGENPAD_SELECT;
-						
-							padread_state <= padread_state + 3'd1;
+
+							type_button3 <= 1'b1;
 						end
-						else begin
-							{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
-							type_button3 <= 1'b0;
-							oGENPAD_TYPE <= 2'd0; // MasterSystem or unknown
-						end
-					end
-				3'd1, 3'd3, 3'd7: begin
-					{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
-					if (type_button3)
-						oGENPAD_SELECT <= ~oGENPAD_SELECT;
-					
-					padread_state <= padread_state + 3'd1;
-				end
-				3'd4: begin
-					if (~oGENPAD_SELECT & type_button3 & ~iGENPAD[3] & ~iGENPAD[2] & ~iGENPAD[1] & ~iGENPAD[0]) begin // If all D-PAD was pressed, then it's 6-buttons PAD
-						type_button6 <= 1'b1;
-						{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4];
-						oGENPAD_SELECT <= ~oGENPAD_SELECT;
-						
-						padread_state <= padread_state + 3'd1;
+						else
+							if (type_button3 == 1'b1)
+								if (iGENPAD[3:0] == 4'b0000) begin // If all D-PAD was pressed at low oGENPAD_SELECT, then it's 6-buttons PAD
+											type_button6 <= 1'b1;
+											{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4];
+
+											padread_state <= padread_state + 2'd1;
+								end
+								else type_button3 <= 1'b0;
+							else begin // MasterSystem or unknown PAD
+								{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
+								type_button6 <= 1'b0;
+							end
 					end
 					else begin
-						type_button6 <= 1'b0;
-						if (type_button3) oGENPAD_TYPE <= 2'd1; // 3-buttons
-						else oGENPAD_TYPE <= 2'd0; // MasterSystem or unknown
-	
-						{oGENPAD_DECODED[7],oGENPAD_DECODED[4],oGENPAD_DECODED[3:2]} <= ~iGENPAD[5:2];
-	
-						padread_state <= 3'd0;
+						{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
 					end
+					oGENPAD_SELECT <= ~oGENPAD_SELECT;
 				end
-				3'd5: begin
-					if (oGENPAD_SELECT & type_button6) begin
+				3'd1: begin
+					if (oGENPAD_SELECT == 1'b1 && type_button3 == 1'b1 && type_button6 == 1'b1)
 						{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= ~iGENPAD; // C, B and extra buttons: Z, Y, X, MODE
-						oGENPAD_SELECT <= ~oGENPAD_SELECT;
-					end
-					
-					// GENPAD type identify
-					case ({type_button3,type_button6})
-						2'b00: oGENPAD_TYPE <= 2'd0; // MasterSystem or unknown
-						2'b01: oGENPAD_TYPE <= 2'd3; // ERROR identify
-						2'b10: oGENPAD_TYPE <= 2'd1; // 3-buttons
-						2'b11: oGENPAD_TYPE <= 2'd2; // 6-buttons
-					endcase
-					
-					padread_state <= padread_state + 3'd1;
+
+					padread_state <= padread_state + 2'd1;
+
+					oGENPAD_SELECT <= ~oGENPAD_SELECT;
 				end
-				3'd6: begin
-					if (type_button3) begin // This state gives same START and A buttons for 3-buttons and 6-buttons PAD
+				3'd2: begin
+					if (oGENPAD_SELECT == 1'b0 && type_button3 == 1'b1 && type_button6 == 1'b1)
 						{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4]; // Start, A and third-party controllers button. Only Start and A used here by genesis_gamepads.
-						oGENPAD_SELECT <= ~oGENPAD_SELECT;
-					end
-					
-					padread_state <= padread_state + 3'd1;
+
+					padread_state <= 2'd0;
+
+					oGENPAD_SELECT <= ~oGENPAD_SELECT;
 				end
 			endcase
+			// GENPAD type identify
+			case ({type_button3,type_button6})
+				2'b00: oGENPAD_TYPE <= 2'd0; // MasterSystem or unknown
+				2'b01: oGENPAD_TYPE <= 2'd3; // ERROR identify
+				2'b10: oGENPAD_TYPE <= 2'd1; // 3-buttons
+				2'b11: oGENPAD_TYPE <= 2'd2; // 6-buttons
+			endcase
+		end
 		else begin
 			oGENPAD_TYPE <= '0; 
 			oGENPAD_SELECT <= '0;
