@@ -24,7 +24,7 @@ module genesis_gamepads (
 	
 	input 		[5:0]	iGENPAD,			 // {C/Start, B/A, Up/Z, Down/Y, Left/X, Right/Mode}
 	
-	output reg	[1:0]	oGENPAD_TYPE = 2'd0,	 // 0 - MasterSystem or unknown, 1 - 3-buttons, 2 - 6-buttons, 3 - error identify
+	output 		[1:0]	oGENPAD_TYPE,	 // 0 - MasterSystem or unknown, 1 - 3-buttons, 2 - 6-buttons, 3 - error identify
 	output reg			oGENPAD_SELECT = 1'b0, // Initial is LOW
 	output reg [11:0]	oGENPAD_DECODED = 12'b0 // {Z,Y,X,M,S,C,B,A,U,D,L,R}
 );
@@ -32,6 +32,8 @@ module genesis_gamepads (
 	reg [1:0]	padread_state = 2'd0;
 	reg			type_button3, type_button6;
 	
+	assign oGENPAD_TYPE = type_button3 ? (type_button6 ? 2'd2 : 2'd1) : (type_button6 ? 2'd3 : 2'd0);
+
 	always @(posedge iCLK) begin
 		
 		if (iN_RESET) begin
@@ -79,19 +81,11 @@ module genesis_gamepads (
 					oGENPAD_SELECT <= ~oGENPAD_SELECT;
 				end
 			endcase
-			// GENPAD type identify
-			case ({type_button3,type_button6})
-				2'b00: oGENPAD_TYPE <= 2'd0; // MasterSystem or unknown
-				2'b01: oGENPAD_TYPE <= 2'd3; // ERROR identify
-				2'b10: oGENPAD_TYPE <= 2'd1; // 3-buttons
-				2'b11: oGENPAD_TYPE <= 2'd2; // 6-buttons
-			endcase
 		end
 		else begin
-			oGENPAD_TYPE <= '0; 
 			oGENPAD_SELECT <= '0;
 			oGENPAD_DECODED <= '0;
-			
+
 			padread_state <= '0;
 			type_button3 <= '0;
 			type_button6 <= '0;
