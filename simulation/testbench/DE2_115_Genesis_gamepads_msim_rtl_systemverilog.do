@@ -13,7 +13,6 @@ vsim -t 1ps -L altera_ver -L lpm_ver -L sgate_ver -L altera_mf_ver -L altera_lns
 
 add wave *
 add wave dut.padread_state
-add wave genesis_pad.genpad6b_state
 view structure
 view signals
 run -all
