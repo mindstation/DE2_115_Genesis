@@ -8,12 +8,13 @@ module testbench_gamepads();
 	
 	logic				buttons_clk; // dummy_buttons press clock
 	logic	[11:0]	dummy_buttons = '0; // {Z,Y,X,M,S,C/2,B/1,A,U,D,L,R}, MasterSystem PAD button 2 is used as C button, button 1 is used as B button
+	logic	[5:0]		mode_buttons;
 	logic	[1:0] 	pad_type = '0;
 	logic				pad_hold_buttons = '0;
 	
 	wire				genpad_select;
 	logic				old_genpad_select = '0;
-	logic	[2:0]		pad6_state = '0;
+	wire	[2:0]		pad6_state;
 	wire	[1:0]		genpad_type_detected;
 	wire	[5:0]		dummy_genpad;
 	wire	[11:0]	genpad_decoded;
@@ -108,7 +109,7 @@ module testbench_gamepads();
 	end
 
 ///// Press buttons
-// ModelSim Intel FPGA Starter Edition 10.5b will skip else block if begin/end doesn't frame nested "if".
+// ModelSim Intel FPGA Starter Edition 10.5b will always run else block if begin/end operators don't frame nested "if".
 	always @(posedge buttons_clk) begin
 		if (nreset) begin
 			case (pad_type)
@@ -206,6 +207,10 @@ module testbench_gamepads();
 ////// results check
 	always @(genpad_decoded) begin
 		if (pad_type == 2'b00) begin // Master System PAD
+			if (genpad_select == 1'b1 && genpad_type_detected !== pad_type) begin
+				$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
+				genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+			end
 			if (genpad_decoded !== dummy_buttons) begin
 				$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b", $time, genpad_decoded, dummy_buttons);
 				decode_error_count <= inc_overflow(decode_error_count);
@@ -216,41 +221,69 @@ module testbench_gamepads();
 
 	always @(genpad_select) begin
 		if (nreset) begin
-			if (pad6_state == 3'd6 && genpad_type_detected !== pad_type) begin // Fifth select is time for detecting PAD type (see genesis_gamepad module)
-				$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
-				genpad_type_error_count <= inc_overflow(genpad_type_error_count);
-			end
-
+			if (pad_type == 2'b10 && pad6_state == 3'd6)
+				mode_buttons <= {dummy_buttons[6:5],dummy_buttons[11:8]};
 			if (old_genpad_decoded != genpad_decoded) begin
 				case (pad_type)
 					2'b01: begin // 3-buttons Genesis PAD
+						if (genpad_select == 1'b1 && genpad_type_detected !== pad_type) begin
+							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
+							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+						end
 						if (old_genpad_select) begin // used previous genpad_select, because genpad_decoded has a 1 clock delay
-							if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]} || {genpad_decoded[11:7],genpad_decoded[4]} !== {old_genpad_decoded[11:7],old_genpad_decoded[4]}) begin
-								decode_error_count <= inc_overflow(decode_error_count);
-								$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+							if (dummy_buttons[3:0] == 4'b1111) begin // If all D-PAD was pressed on the 3-buttons clone gamepad, then genpad_decoded consists {S,C/2,B/1,A,U,D,L,R} button updates
+								if (genpad_decoded[7:0] !== dummy_buttons[7:0] || genpad_decoded[11:8] !== old_genpad_decoded[11:8]) begin
+									decode_error_count <= inc_overflow(decode_error_count);
+									$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+								end
+								if (genpad_decoded[7:0] !== dummy_buttons[7:0]) begin
+									$display ("genpad_decoded[7:0]=%b is not equal to dummy_buttons[7:0]=%b.", genpad_decoded[7:0], dummy_buttons[7:0]);
+								end
+								if (genpad_decoded[11:8] !== old_genpad_decoded[11:8]) begin
+									$display ("genpad_decoded[11:8]=%b changed from %b.", genpad_decoded[11:8], old_genpad_decoded[11:8]);
+								end
 							end
-							if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]}) begin
-								$display ("genpad_decoded{[6:5],[3:0]}=%b is not equal to dummy_buttons{[6:5],[3:0]}=%b.", {genpad_decoded[6:5],genpad_decoded[3:0]}, {dummy_buttons[6:5],dummy_buttons[3:0]});
-							end
-							if ({genpad_decoded[11:7],genpad_decoded[4]} !== {old_genpad_decoded[11:7],old_genpad_decoded[4]}) begin
-								$display ("genpad_decoded{[11:7],[4]}=%b changed from %b.", {genpad_decoded[11:7],genpad_decoded[4]}, {old_genpad_decoded[11:7],old_genpad_decoded[4]});
+							else begin
+								if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]} || {genpad_decoded[11:7],genpad_decoded[4]} !== {old_genpad_decoded[11:7],old_genpad_decoded[4]}) begin
+									decode_error_count <= inc_overflow(decode_error_count);
+									$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+								end
+								if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]}) begin
+									$display ("genpad_decoded{[6:5],[3:0]}=%b is not equal to dummy_buttons{[6:5],[3:0]}=%b.", {genpad_decoded[6:5],genpad_decoded[3:0]}, {dummy_buttons[6:5],dummy_buttons[3:0]});
+								end
+								if ({genpad_decoded[11:7],genpad_decoded[4]} !== {old_genpad_decoded[11:7],old_genpad_decoded[4]}) begin
+									$display ("genpad_decoded{[11:7],[4]}=%b changed from %b.", {genpad_decoded[11:7],genpad_decoded[4]}, {old_genpad_decoded[11:7],old_genpad_decoded[4]});
+								end
 							end
 						end
 						else begin
-							if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]} !== {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]} || {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]}) begin
-								decode_error_count <= inc_overflow(decode_error_count);
-								$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+							if (dummy_buttons[3:0] == 4'b1111) begin // genpad_decoded was not updated if all D-PAD was pressed on the 3-buttons clone gamepad
+								if (genpad_decoded[11:0] !== old_genpad_decoded[11:0]) begin
+									decode_error_count <= inc_overflow(decode_error_count);
+									$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+									$display ("genpad_decoded[11:0]=%b changed from %b.", genpad_decoded[11:0], old_genpad_decoded[11:0]);
+								end
 							end
-							if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]} !== {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]}) begin
-								$display ("genpad_decoded{[7],[4],[3:2]}=%b is not equal to dummy_buttons{[7],[4],[3:2]}=%b.", {genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]}, {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]});
-							end
-							if ({genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]}) begin
-								$display ("genpad_decoded{[11:8],[6:5],[1:0]}=%b changed from %b.", {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]}, {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]});
-								decode_error_count <= inc_overflow(decode_error_count);
+							else begin
+								if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]} || {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
+									decode_error_count <= inc_overflow(decode_error_count);
+									$display ("%t: Gamepad decoding ERROR after genpad_select=%b!", $time, ~genpad_select);
+								end
+								if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]}) begin
+									$display ("genpad_decoded{[7],[4]}=%b is not equal to dummy_buttons{[7],[4]}=%b.", {genpad_decoded[7],genpad_decoded[4]}, {dummy_buttons[7],dummy_buttons[4]});
+								end
+								if ({genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
+									$display ("genpad_decoded{[11:8],[6:5],[3:0]}=%b changed from %b.", {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]}, {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]});
+									decode_error_count <= inc_overflow(decode_error_count);
+								end
 							end
 						end
 					end
 					2'b10: begin // 6-buttons Genesis PADs
+						if (pad6_state == 3'd7 && genpad_type_detected !== pad_type) begin
+							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
+							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+						end
 						case (pad6_state)
 							3'd0, 3'd1, 3'd2, 3'd3, 3'd4: begin
 								if (old_genpad_select) begin // used previous genpad_select, because genpad_decoded has a 1 clock delay
@@ -266,20 +299,19 @@ module testbench_gamepads();
 									end
 								end
 								else begin
-									if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]} !== {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]} || {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]}) begin
+									if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]} || {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
 										decode_error_count <= inc_overflow(decode_error_count);
 										$display ("%t: Gamepad decoding ERROR at pad6_state=%d!", $time, pad6_state);
 									end
-									if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]} !== {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]}) begin
-										$display ("genpad_decoded{[7],[4],[3:2]}=%b is not equal to dummy_buttons{[7],[4],[3:2]}=%b.", {genpad_decoded[7],genpad_decoded[4],genpad_decoded[3:2]}, {dummy_buttons[7],dummy_buttons[4],dummy_buttons[3:2]});
+									if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]}) begin
+										$display ("genpad_decoded{[7],[4]}=%b is not equal to dummy_buttons{[7],[4]}=%b.", {genpad_decoded[7],genpad_decoded[4]}, {dummy_buttons[7],dummy_buttons[4]});
 									end
-									if ({genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]}) begin
-										$display ("genpad_decoded{[11:8],[6:5],[1:0]}=%b changed from %b.", {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[1:0]}, {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[1:0]});
-										decode_error_count <= inc_overflow(decode_error_count);
+									if ({genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
+										$display ("genpad_decoded{[11:8],[6:5],[3:0]}=%b changed from %b.", {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]}, {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]});
 									end
 								end
 							end
-							3'd5, 3'd7: begin
+							3'd5: begin
 								if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]} || {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
 									decode_error_count <= inc_overflow(decode_error_count);
 									$display ("%t: Gamepad decoding ERROR at pad6_state=%d!", $time, pad6_state);
@@ -289,19 +321,28 @@ module testbench_gamepads();
 								end
 								if ({genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]} !== {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]}) begin
 									$display ("genpad_decoded{[11:8],[6:5],[3:0]}=%b changed from %b.", {genpad_decoded[11:8],genpad_decoded[6:5],genpad_decoded[3:0]}, {old_genpad_decoded[11:8],old_genpad_decoded[6:5],old_genpad_decoded[3:0]});
-									decode_error_count <= inc_overflow(decode_error_count);
 								end
 							end
 							3'd6: begin
-								if ({genpad_decoded[11:8],genpad_decoded[6:5]} !== {dummy_buttons[11:8],dummy_buttons[6:5]} || {genpad_decoded[7],genpad_decoded[4:0]} !== {old_genpad_decoded[7],old_genpad_decoded[4:0]}) begin
+								if (genpad_decoded[11:0] !== old_genpad_decoded[11:0]) begin
+									decode_error_count <= inc_overflow(decode_error_count);
+									$display ("%t: Gamepad decoding ERROR at pad6_state=%d!", $time, pad6_state);
+									$display ("genpad_decoded[11:0]=%b changed from %b.", genpad_decoded[11:0],old_genpad_decoded[11:0]);
+								end
+							end
+							3'd7: begin
+								if ({genpad_decoded[7],genpad_decoded[4],genpad_decoded[6:5],genpad_decoded[11:8]} !== {dummy_buttons[7],dummy_buttons[4],mode_buttons} || genpad_decoded[3:0] !== old_genpad_decoded[3:0]) begin
 									decode_error_count <= inc_overflow(decode_error_count);
 									$display ("%t: Gamepad decoding ERROR at pad6_state=%d!", $time, pad6_state);
 								end
-								if ({genpad_decoded[11:8],genpad_decoded[6:5]} !== {dummy_buttons[11:8],dummy_buttons[6:5]}) begin
-									$display ("genpad_decoded{[11:8],[6:5]}=%b is not equal to dummy_buttons{[11:8],[6:5]}=%b.", {genpad_decoded[11:8],genpad_decoded[6:5]}, {dummy_buttons[11:8],dummy_buttons[6:5]});
+								if ({genpad_decoded[7],genpad_decoded[4]} !== {dummy_buttons[7],dummy_buttons[4]}) begin
+									$display ("genpad_decoded{[7],[4]}=%b is not equal to dummy_buttons{[7],[4]}=%b", {genpad_decoded[7],genpad_decoded[4]}, {dummy_buttons[7],dummy_buttons[4]});
 								end
-								if ({genpad_decoded[7],genpad_decoded[4:0]} !== {old_genpad_decoded[7],old_genpad_decoded[4:0]}) begin
-									$display ("genpad_decoded{[7],[4:0]}=%b changed from %b.", {genpad_decoded[7],genpad_decoded[4:0]}, {old_genpad_decoded[7],old_genpad_decoded[4:0]});
+								if ({genpad_decoded[6:5],genpad_decoded[11:8]} !== mode_buttons) begin
+									$display ("genpad_decoded{[6:5],[11:8]}=%b is not equal to old_dummy_buttons{[6:5],[11:8]}=%b", {genpad_decoded[6:5],genpad_decoded[11:8]}, mode_buttons);
+								end
+								if (genpad_decoded[3:0] !== old_genpad_decoded[3:0]) begin
+									$display ("genpad_decoded[3:0]=%b changed from %b.", genpad_decoded[3:0], old_genpad_decoded[3:0]);
 								end
 							end
 							default: begin
