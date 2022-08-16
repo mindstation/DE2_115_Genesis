@@ -9,7 +9,8 @@ module testbench_gamepads();
 	logic				buttons_clk; // dummy_buttons press clock
 	logic	[11:0]	dummy_buttons = '0; // {Z,Y,X,M,S,C/2,B/1,A,U,D,L,R}, MasterSystem PAD button 2 is used as C button, button 1 is used as B button
 	logic	[5:0]		mode_buttons;
-	logic	[1:0] 	pad_type = '0;
+	logic	[1:0] 	pad_type = '0, old_pad_type;
+	logic [2:0]		pad_type_clk_count = '0;
 	logic				pad_hold_buttons = '0;
 	
 	wire				genpad_select;
@@ -205,31 +206,85 @@ module testbench_gamepads();
 	end
 
 ////// results check
-	always @(genpad_decoded) begin
-		if (pad_type == 2'b00) begin // Master System PAD
-			if (genpad_select == 1'b1 && genpad_type_detected !== pad_type) begin
-				$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
-				genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+	always @(genpad_type_detected) begin // checks of genpad_type_detected update
+		case (pad_type)
+			2'b00, 2'b01: begin // Master System or 3-buttons Genesis PAD
+				if (genpad_type_detected !== pad_type) begin
+					$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
+					genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+				end
 			end
-			if (genpad_decoded !== dummy_buttons) begin
-				$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b", $time, genpad_decoded, dummy_buttons);
-				decode_error_count <= inc_overflow(decode_error_count);
+			2'b10: begin // 6-buttons Genesis PADs
+				if (genpad_type_detected !== pad_type) begin
+					case (pad6_state)
+						3'd0: begin
+							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b at pad6_state=%b", $time, genpad_type_detected, pad_type, pad6_state);
+							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+						end
+						3'd1, 3'd2: begin
+							if (genpad_type_detected !== 2'b01) begin
+								$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to 2'b01 at pad6_state=%b", $time, genpad_type_detected, pad6_state);
+								genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+							end
+						end
+						default: begin
+							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b at pad6_state=%b", $time, genpad_type_detected, pad_type, pad6_state);
+							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+						end
+					endcase
+				end
 			end
-		end
-
+			default: begin
+				$display ("Invalid pad_type=%b at genpad_type_detected update check! Simulation was stopped.", pad_type);
+				$finish;
+			end
+		endcase
 	end
 
-	always @(genpad_select) begin
+	always @(posedge fpga_clk_50) begin
 		if (nreset) begin
+			if (pad_type !== old_pad_type) begin // checks of stuck genpad_type_detected
+				pad_type_clk_count <= pad_type_clk_count + 1'd1;
+
+				case (pad_type)
+					2'b00, 2'b01: begin // Master System PAD
+						if (pad_type_clk_count == 3'd2) begin
+							if (genpad_type_detected !== pad_type) begin
+								$display ("%t: Gamepad type detecting stuck ERROR! genpad_type_detected=%b was not changed to pad_type=%b at pad_type_clk_count=%b", $time, genpad_type_detected, pad_type, pad_type_clk_count);
+								genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+							end
+							pad_type_clk_count <= '0;
+							old_pad_type <= pad_type;
+						end
+					end
+					2'b10: begin // 6-buttons Genesis PADs
+						if (pad_type_clk_count == 3'd7) begin
+							if (genpad_type_detected !== pad_type) begin
+								$display ("%t: Gamepad type detecting stuck ERROR! genpad_type_detected=%b was not changed to pad_type=%b at pad_type_clk_count=%b", $time, genpad_type_detected, pad_type, pad_type_clk_count);
+								genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+							end
+							pad_type_clk_count <= '0;
+							old_pad_type <= pad_type;
+						end
+					end
+					default: begin
+						$display ("Invalid pad_type=%b at genpad_type_detected stuck check! Simulation was stopped.", pad_type);
+						$finish;
+					end
+				endcase
+			end
+
 			if (pad_type == 2'b10 && pad6_state == 3'd6)
 				mode_buttons <= {dummy_buttons[6:5],dummy_buttons[11:8]};
 			if (old_genpad_decoded != genpad_decoded) begin
-				case (pad_type)
-					2'b01: begin // 3-buttons Genesis PAD
-						if (genpad_select == 1'b1 && genpad_type_detected !== pad_type) begin
-							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
-							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
+				case (pad_type) // genpad_decoded checks
+					2'b00: begin // Master System PAD
+						if (genpad_decoded !== dummy_buttons) begin
+							$display ("%t: Gamepad decoding ERROR! genpad_decoded=%b is not equal to dummy_buttons=%b", $time, genpad_decoded, dummy_buttons);
+							decode_error_count <= inc_overflow(decode_error_count);
 						end
+					end
+					2'b01: begin // 3-buttons Genesis PAD
 						if (old_genpad_select) begin // used previous genpad_select, because genpad_decoded has a 1 clock delay
 							if (dummy_buttons[3:0] == 4'b1111) begin // If all D-PAD was pressed on the 3-buttons clone gamepad, then genpad_decoded consists {S,C/2,B/1,A,U,D,L,R} button updates
 								if (genpad_decoded[7:0] !== dummy_buttons[7:0] || genpad_decoded[11:8] !== old_genpad_decoded[11:8]) begin
@@ -280,11 +335,7 @@ module testbench_gamepads();
 						end
 					end
 					2'b10: begin // 6-buttons Genesis PADs
-						if (pad6_state == 3'd7 && genpad_type_detected !== pad_type) begin
-							$display ("%t: Gamepad type detect ERROR! genpad_type_detected=%b is not equal to pad_type=%b", $time, genpad_type_detected, pad_type);
-							genpad_type_error_count <= inc_overflow(genpad_type_error_count);
-						end
-						case (pad6_state)
+						case (pad6_state - 1'd1) // Current genpad_decoded was generated for the previous pad6_state
 							3'd0, 3'd1, 3'd2, 3'd3, 3'd4: begin
 								if (old_genpad_select) begin // used previous genpad_select, because genpad_decoded has a 1 clock delay
 									if ({genpad_decoded[6:5],genpad_decoded[3:0]} !== {dummy_buttons[6:5],dummy_buttons[3:0]} || {genpad_decoded[11:7],genpad_decoded[4]} !== {old_genpad_decoded[11:7],old_genpad_decoded[4]}) begin
@@ -357,6 +408,7 @@ module testbench_gamepads();
 		end
 		else begin
 			old_genpad_decoded <= genpad_decoded;
+			pad_type_clk_count <= '0;
 		end
 		old_genpad_select <= genpad_select;
 	end
