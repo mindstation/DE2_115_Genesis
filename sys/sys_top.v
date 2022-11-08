@@ -46,8 +46,8 @@ module sys_top
 	output        VGA_SYNC_N,
 	
 	/////////// AUDIO //////////
-	output		  AUDIO_L, // exGPIO[1], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
-	output		  AUDIO_R, // exGPIO[3], analog connection through RC-filter
+	output		  AUDIO_L, // exGPIO[0], analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
+	output		  AUDIO_R, // exGPIO[2], analog connection through RC-filter
 	
 	output  [0:0] LEDR, // LEDR[0] = led_user
 	output  [1:0] LEDG,
@@ -75,8 +75,8 @@ module sys_top
 
 	///////// USER IO ///////////
 	inout [35:0] GPIO, // [35], [33], [31], [29], [27], [25], [23] - MiSTER serial
-	                   // [12], [16], [20], [24], [28], [32] - SMS gamepad 1 (21UDLR, active low)
-	                   // [1], [3], [5], [7], [9], [11] - SMS gamepad 2 (21UDLR, active low)
+	                   // [12], [16], [20], [24], [28], [32], [34] - SMS/GEN gamepad 1 {2, 1, Up, Down, Left, Right, NC} or {C/Start, B/A, Up/Z, Down/Y, Left/X, Right/Mode, Select} buttons active low
+	                   // [1], [3], [5], [7], [9], [11], [13] - SMS/GEN gamepad 2 {2, 1, Up, Down, Left, Right, NC} or {C/Start, B/A, Up/Z, Down/Y, Left/X, Right/Mode, Select} buttons active low
 	
 	// FLASH interface
 	output		  FL_RST_N,
@@ -94,13 +94,21 @@ assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
 assign LEDG[0] = led_disk[1] ? ~led_disk[0] : 1'b0;
 assign LEDR[0] = led_user;
 
+wire [5:0]	gpio_gamepad_1, gpio_gamepad_2;
+wire gamepad_1_select, gamepad_2_select;
+
+assign gpio_gamepad_1 = {GPIO[12],GPIO[16],GPIO[20],GPIO[24],GPIO[28],GPIO[32]};
+assign GPIO[34] = gamepad_1_select;
+assign gpio_gamepad_2 = {GPIO[1],GPIO[3],GPIO[5],GPIO[7],GPIO[9],GPIO[11]};
+assign GPIO[13] = gamepad_2_select;
+
 wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
 
 //exHSP, joystick bitmap (used only 11 bit from 32)
 //0      7 8      15       23       31
 //xxxxxxxx xxxxxxxx xxxxZYXM SCBAUDLR
-assign joystick_0 = {20'b00000000000000000000, 4'b0, ~KEY[3],(SW[4] | ~GPIO[12]),(SW[5] | ~GPIO[16]),~KEY[2],(SW[2] | ~GPIO[20]),(SW[1] | ~GPIO[24]),(SW[3] | ~GPIO[28]),(SW[0] | ~GPIO[32])};
-assign joystick_1 = {20'b00000000000000000000, 4'b0, ~KEY[1],(SW[11] | ~GPIO[1]),(SW[12] | ~GPIO[3]),~KEY[0],(SW[9] | ~GPIO[5]),(SW[8] | ~GPIO[7]),(SW[10] | ~GPIO[9]),(SW[7] | ~GPIO[11])};
+assign joystick_0 = {20'b00000000000000000000, control1_decoded[11:8],(~KEY[3] | control1_decoded[7]),(SW[4] | control1_decoded[6]),(SW[5] | control1_decoded[5]),(~KEY[2] | control1_decoded[4]),(SW[2] | control1_decoded[3]),(SW[1] | control1_decoded[2]),(SW[3] | control1_decoded[1]),(SW[0] | control1_decoded[0])};
+assign joystick_1 = {20'b00000000000000000000, control2_decoded[11:8],(~KEY[1] | control2_decoded[7]),(SW[11] | control2_decoded[6]),(SW[12] | control2_decoded[5]),(~KEY[0] | control2_decoded[4]),(SW[9] | control2_decoded[3]),(SW[8] | control2_decoded[2]),(SW[10] | control2_decoded[1]),(SW[7] | control2_decoded[0])};
 assign joystick_2 = 32'd0;
 assign joystick_3 = 32'd0;
 assign joystick_4 = 32'd0;
@@ -181,7 +189,7 @@ I2C_AV_Config  i2c_con
 (
 //      Host Side
 .iCLK(CLOCK2_50),
-.iRST_N(reset),
+.iRST_N(~reset),
 //      I2C Side
 .oI2C_SCLK(I2C_SCLK),
 .oI2C_SDAT(I2C_SDAT)
@@ -264,6 +272,33 @@ assign user_in[3] = GPIO[29];
 assign user_in[4] = GPIO[31];
 assign user_in[5] = GPIO[33];
 assign user_in[6] = GPIO[35];
+
+// MasterSystem/Genesis gamepad ports.
+wire [11:0] control1_decoded, control2_decoded;
+
+genesis_gamepads control1
+(
+	.iCLK(CLOCK_50),
+	.iN_RESET(~reset),
+
+	.iGENPAD(gpio_gamepad_1),
+
+	.oGENPAD_TYPE(),							// 0 - MasterSystem or unknown, 1 - 3-buttons, 2 - 6-buttons, 3 - error identify; not used, ex_hps_io/status[5] sets 3-buttons or 6-buttons mode for all PADs
+	.oGENPAD_SELECT(gamepad_1_select),
+	.oGENPAD_DECODED(control1_decoded) // {Z,Y,X,M,S,C,B,A,U,D,L,R}
+);
+
+genesis_gamepads control2
+(
+	.iCLK(CLOCK_50),
+	.iN_RESET(~reset),
+
+	.iGENPAD(gpio_gamepad_2),
+
+	.oGENPAD_TYPE(),							// 0 - MasterSystem or unknown, 1 - 3-buttons, 2 - 6-buttons, 3 - error identify; not used, ex_hps_io/status[5] sets 3-buttons or 6-buttons mode for all PADs
+	.oGENPAD_SELECT(gamepad_2_select),
+	.oGENPAD_DECODED(control2_decoded) // {Z,Y,X,M,S,C,B,A,U,D,L,R}
+);
 
 ///////////////////  User module connection ////////////////////////////
 wire [15:0] audio_l, audio_r;
