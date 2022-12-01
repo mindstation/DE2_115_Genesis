@@ -26,9 +26,9 @@ module genesis_gamepads
 (
 	input					iCLK,           // 50 MHz
 	input					iN_RESET,
-	
+
 	input			[5:0]	iGENPAD,			 // {C/Start, B/A, Up/Z, Down/Y, Left/X, Right/Mode}
-	
+
 	output		[1:0]	oGENPAD_TYPE,	 // 0 - MasterSystem or unknown, 1 - 3-buttons, 2 - 6-buttons, 3 - error identify
 	output reg			oGENPAD_SELECT = 1'b0, // Initial is LOW
 	output reg [11:0]	oGENPAD_DECODED = 12'b0 // {Z,Y,X,M,S,C,B,A,U,D,L,R}
@@ -182,6 +182,10 @@ module genesis_gamepads
 						end
 						else
 							{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
+							
+						if (xyzm_wait_cnt > xyzm_wait) begin
+							type_button6 <= 1'b0;
+						end
 					end
 					3'd5: begin
 						if (oGENPAD_SELECT == 1'b1 && type_button3 == 1'b1)
@@ -198,8 +202,6 @@ module genesis_gamepads
 							end
 							else begin
 								{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= mode_buttons; // If all D-PAD wasn't released at low oGENPAD_SELECT after full D-PAD pressing, then mode_buttons is C, B and D-PAD.
-
-								type_button6 <= 1'b0;
 							end
 						end
 					end
