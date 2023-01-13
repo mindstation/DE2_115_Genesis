@@ -2,7 +2,7 @@
 //
 //  Genesis gamepads controller.
 //  Only 3-buttons, 6-buttons, MasterSystem (and similar) gamepads are supported.
-//  (c)2020-2022 Alexander Kirichenko
+//  (c)2022-2023 Alexander Kirichenko
 //
 //  This source file is free software: you can redistribute it and/or modify 
 //  it under the terms of the GNU General Public License as published 
@@ -22,7 +22,7 @@
 module genesis_gamepads 
 # (parameter	select_latency = 1000,	// 1000 ticks at 50 MHz equals to 40 us
 					xyzm_wait = 502,			// select_latency(40 us default) * 502 = 20.08 ms or 48 Hz, close to PAL VBLANK time with some reserve time
-					read_latency = 48)			// read_latency is latency after oGENPAD_SELECT, before iGENPAD state change; typically - 32 tick at 50 MHz
+					read_latency = 48)		// read_latency is latency after oGENPAD_SELECT, before iGENPAD state change; typically - 32 ticks at 50 MHz
 (
 	input					iCLK,           // 50 MHz
 	input					iN_RESET,
@@ -84,28 +84,32 @@ module genesis_gamepads
 						end
 					end
 					3'd4: begin
-						if (oGENPAD_SELECT == 1'b0) begin
-							if	(iGENPAD[3:0] == 4'b0000 && xyzm_wait_cnt <= xyzm_wait) begin
-								padread_state <= padread_state + 3'd1;
+						if (oGENPAD_SELECT == 1'b0) begin					// If all d-pad pressed at hight select, then it's just all d-pad pressed (possible for clone gamepads)
+							if	(xyzm_wait_cnt <= xyzm_wait) begin
+								case (iGENPAD[3:0])
+									4'b0000: begin
+										padread_state <= padread_state + 3'd1;
 
-							end
-							else if (xyzm_wait_cnt < xyzm_wait) begin
 										xyzm_wait_cnt <= xyzm_wait_cnt + 9'd1;
 									end
-									else begin // full d-pad timeout
+									4'b1111: begin									// If all d-pad of 6-buttons gamepad is released at low select, then we got XYZM at last tick
 										xyzm_wait_cnt <= 9'd0;
-
-										if (oGENPAD_SELECT == 1'b0) begin
-												padread_state <= 3'd1;
-											end
-											else
-												padread_state <= 3'd0;
 									end
-						end
-						else
-							if	(iGENPAD[3:0] == 4'b0000) begin 									// If all d-pad pressed at hight select, then it's just all d-pad pressed (possible for clone gamepads)
-								padread_state <= 3'd0;
+									default: begin
+										xyzm_wait_cnt <= xyzm_wait_cnt + 9'd1;
+									end
+								endcase
 							end
+							else begin // full d-pad timeout
+								xyzm_wait_cnt <= 9'd0;
+
+								if (oGENPAD_SELECT == 1'b0) begin
+										padread_state <= 3'd1;
+									end
+									else
+										padread_state <= 3'd0;
+							end
+						end
 
 					end
 					3'd5: begin
@@ -118,11 +122,23 @@ module genesis_gamepads
 					end
 					3'd6: begin
 						if (oGENPAD_SELECT == 1'b0 && type_button3 == 1'b1) begin
-							if (iGENPAD[3:0] == 4'b1111) begin									// All D-PAD of 6-buttons gamepad is "released" after extra buttons
-								padread_state <= padread_state + 3'd1;
+							case (iGENPAD[3:0])
+								4'b0000: begin									// If all D-PAD of 6-buttons gamepad is pressed at low select, then it's possible XYZM sign
+									padread_state <= 3'd5;
 
-								xyzm_wait_cnt <= 9'd0;
-							end
+									xyzm_wait_cnt <= xyzm_wait_cnt + 9'd1;
+								end
+								4'b1111: begin									// All D-PAD of 6-buttons gamepad is "released" after extra buttons
+									padread_state <= padread_state + 3'd1;
+
+									xyzm_wait_cnt <= 9'd0;
+								end
+								default: begin
+									xyzm_wait_cnt <= xyzm_wait_cnt + 9'd1;
+
+									padread_state <= 3'd4;
+								end
+							endcase
 						end
 						else if (xyzm_wait_cnt > xyzm_wait) begin
 									xyzm_wait_cnt <= 9'd0;
@@ -182,7 +198,7 @@ module genesis_gamepads
 						end
 						else
 							{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= ~iGENPAD;
-							
+
 						if (xyzm_wait_cnt > xyzm_wait) begin
 							type_button6 <= 1'b0;
 						end
@@ -190,18 +206,21 @@ module genesis_gamepads
 					3'd5: begin
 						if (oGENPAD_SELECT == 1'b1 && type_button3 == 1'b1)
 							mode_buttons <= ~iGENPAD; // C, B and extra buttons, maybe: Z, Y, X, MODE
-
 					end
 					3'd6: begin
-						if (oGENPAD_SELECT == 1'b0 && type_button3 == 1'b1) begin
-							if (iGENPAD[3:0] == 4'b1111) begin // If all D-PAD was released at low oGENPAD_SELECT after full D-PAD pressing, then it's 6-buttons PAD, highly likely
+						if (type_button3 == 1'b1) begin
+							if (oGENPAD_SELECT == 1'b0) begin
 								{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4]; // Start, A and third-party controller buttons. But the Genesis core doesn't support third-party extra buttons. Only Start and A used here.
-								{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= mode_buttons;
+								if (iGENPAD[3:0] == 4'b1111) begin // If all third-party extra buttons were released at low oGENPAD_SELECT after full D-PAD pressing, then it's 6-buttons PAD, highly likely
+									{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= mode_buttons;
 
-								type_button6 <= 1'b1;
+									type_button6 <= 1'b1; // It's 6-buttons PAD because mode_buttons was received
+								end
 							end
 							else begin
-								{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= mode_buttons; // If all D-PAD wasn't released at low oGENPAD_SELECT after full D-PAD pressing, then mode_buttons is C, B and D-PAD.
+								if (iGENPAD[3:0] == 4'b0000) begin // If all D-PAD wasn't released at low oGENPAD_SELECT after full D-PAD pressing, then mode_buttons is C, B and D-PAD.
+									{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= mode_buttons;
+								end
 							end
 						end
 					end
