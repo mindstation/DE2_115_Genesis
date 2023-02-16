@@ -6,10 +6,10 @@ module testbench_gamepads();
 	
 	logic [15:0]	decode_error_count = '0, genpad_type_error_count = '0;
 
-	logic				buttons_clk; // dummy_buttons press clock
-	logic	[11:0]	dummy_buttons = '0, old_dummy_buttons; // {Z,Y,X,M,S,C/2,B/1,A,U,D,L,R}, MasterSystem PAD button 2 is used as C button, button 1 is used as B button
+	logic				buttons_clk;									// dummy_buttons press clock
+	logic	[11:0]	dummy_buttons = '0, old_dummy_buttons;	// {Z,Y,X,M,S,C/2,B/1,A,U,D,L,R}, MasterSystem PAD button 2 is used as C button, button 1 is used as B button
 	logic	[5:0]		mode_buttons;
-	logic	[1:0] 	pad_type = 'd2, old_pad_type;
+	logic	[1:0] 	pad_type = 'd0, old_pad_type;
 	logic [2:0]		pad_type_clk_count = '0;
 	logic				pad_hold_buttons = '0;
 
