@@ -37,7 +37,7 @@ module genesis_gamepads
 	reg [10:0]	pad_clk;
 	reg [8:0]	xyzm_wait_cnt;
 
-	reg [2:0]	padread_state = 3'd0;
+	reg [2:0]	padread_state = 3'd0,padread_state_old;
 	reg [5:0]	read_wait = 6'd0;
 	wire			padread_state_en, genpad_read_en;
 	reg			type_button3, type_button6;
@@ -82,6 +82,8 @@ module genesis_gamepads
 
 			// Next state
 			if (padread_state_en) begin
+				padread_state_old <= padread_state;
+
 				case (padread_state)
 					3'd0, 3'd2: begin
 						if (genpad_select == 1'b0) begin
@@ -105,7 +107,7 @@ module genesis_gamepads
 					3'd4: begin
 						if (genpad_select == 1'b0) begin
 							if	(xyzm_wait_cnt <= xyzm_wait) begin
-								if (iGENPAD[3:0] == 4'b0000) begin			// If all d-pad pressed at hight select, then it's just all d-pad pressed (possible for clone gamepads)
+								if (iGENPAD[3:0] == 4'b0000) begin
 									padread_state <= padread_state + 3'd1;
 								end
 							end
@@ -189,6 +191,8 @@ module genesis_gamepads
 		end
 		else begin
 			padread_state <= 3'd0;
+			padread_state_old <= 3'd0;
+
 			xyzm_wait_cnt <= 9'd0;
 		end
 
@@ -238,7 +242,7 @@ module genesis_gamepads
 					end
 					3'd5: begin
 						if (genpad_select == 1'b1 && type_button3 == 1'b1) begin
-							mode_buttons <= ~iGENPAD;								// Maybe C, B and extra buttons ZYX MODE
+							mode_buttons <= ~iGENPAD;								// Maybe C, B and extra buttons ZYX MODE or C, B and D-PAD
 						end
 					end
 				endcase
@@ -272,6 +276,13 @@ module genesis_gamepads
 						end
 
 					end
+					3'd5: begin
+						if (genpad_select == 1'b1 && type_button3 == 1'b1) begin
+							if (iGENPAD[3:0] == 4'b0000 && padread_state_old == 3'd6) begin // If all D-PAD wasn't released at low oGENPAD_SELECT after full D-PAD pressing, then mode_buttons is C, B and D-PAD.
+								{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= mode_buttons;
+							end
+						end
+					end
 					// 3'd5 does nothing but save C,B,Z,Y,X,M candidate for 3'd6 state
 					3'd6: begin
 						if (type_button3 == 1'b1) begin
@@ -279,11 +290,6 @@ module genesis_gamepads
 								{oGENPAD_DECODED[7],oGENPAD_DECODED[4]} <= ~iGENPAD[5:4];	// Start, A and third-party controller buttons. But the Genesis core doesn't support third-party extra buttons. Only Start and A used here.
 								if (iGENPAD[3:0] == 4'b1111) begin									// If all third-party extra buttons were released at low oGENPAD_SELECT after full D-PAD pressing, then it's 6-buttons PAD, highly likely
 									{oGENPAD_DECODED[6:5],oGENPAD_DECODED[11:8]} <= mode_buttons;
-								end
-							end
-							else begin
-								if (iGENPAD[3:0] == 4'b0000) begin 				// If all D-PAD wasn't released at low oGENPAD_SELECT after full D-PAD pressing, then mode_buttons is C, B and D-PAD.
-									{oGENPAD_DECODED[6:5],oGENPAD_DECODED[3:0]} <= mode_buttons;
 								end
 							end
 						end
