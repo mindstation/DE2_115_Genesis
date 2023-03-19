@@ -40,39 +40,45 @@ ROM size is set by the ROM header. Only exception is Super Street Fighter 2 New 
 
 ### Genesis and Mega Drive gamepads 
 
-They can be connected to GPIO in the Master System compatibility mode: works only B, C buttons and D-Pad.
+3 or 6 buttons gamepad can be connected to GPIO. No support for other accessories.
 
 See connection diagram in "schematics/DE2-115 Genesis and Mega Drive gamepads 3V3 adapter.pdf" for a simple 3.3V connection, or 
-"schematics/DE2-115 Genesis and Mega Drive gamepads 5V adapter.pdf" for a 5V connection with a Logic Level Converter chip.
+"schematics/DE2-115 Genesis and Mega Drive gamepads 5V adapter.pdf" for a 5V connection with a Logic Level Converter chip SN74LVC244A.
 
-GPIO connection list for player 1 and player 2 gamepads:
+GPIO 3.3V connection list for player 1 and player 2 gamepads:
 
-* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - gamepad 1 (CBUDLR, active low)
-* JP5 pin  2, JP5 pin  4, JP5 pin  6, JP5 pin  8, JP5 pin 10, JP5 pin 14 - gamepad 2 (CBUDLR, active low)
+* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 29, JP5 pin 30, JP5 pin 33, JP5 pin 37, JP5 pin 39 - gamepad 1 (C/Start, B/A, Up/Z, Down/Y, 3.3V, GND, Left/X, Right/Mode, Select)
+* JP5 pin 2, JP5 pin 4, JP5 pin 6, JP5 pin 8, JP5 pin 10, JP5 pin 12, JP5 pin 14, JP5 pin 16, JP5 pin 29 - gamepad 2 (C/Start, B/A, Up/Z, Down/Y, Left/X, GND, Right/Mode, Select, 3.3V)
 
-Mega Drive and Genesis gamepad pinout in the Master System compatibility mode (3.3V power):
+Mega Drive and Genesis 6-buttons gamepad pinout list (3.3V power):
 
-pin 9 - C button, pin 6 - B button, pin 1 - Up, pin 2 - Down, pin 3 - Left, pin 4 - Right, pin 5 - 3,3V,
-pin 7 - "Select" buttons set (3.3V), pin 8 - GND
+pin 1 - Up/Z, pin 2 - Down/Y, pin 3 - Left/X, pin 4 - Right/Mode, pin 5 - 3.3V,
+pin 6 - B/A, pin 7 - "Select" buttons set, pin 8 - GND, pin 9 - C/Start
 
-Most Genesis and Mega Drive gamepads work fine with 3.3V power. If your gamepads don't, then try 5V connection.
+Contact numbering at gamepad connector is from right to left by rows. The first right pin in the upper row is pin 1. The last one is pin 5. The first right pin in the bottom row is pin 6. The last one is pin 9.
+
+Most Genesis and Mega Drive gamepads work fine with 3.3V power. If your gamepads don't, then try 5V connection scheme.
 
 ### Master System or compatible gamepads 
 
-They can be connected also to the GPIO with 3.3V pull-up resistors.
+They can be connected also to the GPIO with 3.3V pull-up resistors. No power needs for the gamepad.
 See connection diagram in "schematics/DE2-115 Master System gamepads adapter.pdf".
+
+No support for other Master System accessories.
 
 GPIO connection list for player 1 and player 2 gamepads:
 
-* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (21UDLR, active low)
-* JP5 pin  2, JP5 pin 4,  JP5 pin 6,  JP5 pin 8,  JP5 pin 10, JP5 pin 14 - SMS gamepad 2 (21UDLR, active low)
+* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 30, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (Button 2, Button 1, Up, Down, GND, Left, Right; active low)
+* JP5 pin 2, JP5 pin 4, JP5 pin 6, JP5 pin 8, JP5 pin 10, JP5 pin 12, JP5 pin 14 - SMS gamepad 2 (Button 2, Button 1, Up, Down, Left, GND, Right; active low)
 
 Master System gamepad pinout:
 
-pin 9 - button 2, pin 6 - button 1, pin 1 - Up, pin 2 - Down, pin 3 - Left, pin 4 - Right, pin 8 - GND
+pin 1 - Up, pin 2 - Down, pin 3 - Left, pin 4 - Right, pin 6 - Button 1, pin 8 - GND, pin 9 - Button 2
 
-Where SMS gamepad button 1 is Genesis B button.
-SMS gamepad button 2 is Genesis C button.
+Contact numbering at gamepad connector is from right to left by rows. The first right pin in the upper row is pin 1. The last one is pin 5. The first right pin in the bottom row is pin 6. The last one is pin 9.
+
+Where button 1 of SMS gamepad is used as B Genesis button.
+Button 2 of SMS gamepad is used as C Genesis button.
 
 
 ## Files description

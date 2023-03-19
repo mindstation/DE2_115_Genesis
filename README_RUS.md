@@ -41,21 +41,22 @@ All rights reserved
 
 ### Геймпады Mega Drive и Genesis
 
-К контактам GPIO на DE2-115 можно подключать геймпады Mega Drive и Genesis в режиме совместимости с Master System.
-В этом режиме работают только кнопки B, C и крестовина.
+К контактам GPIO на DE2-115 можно подключать 3 и 6 кнопочные геймпады Mega Drive и Genesis.
+Другая периферия не поддерживается.
 
 Схему подключения смотрите в файле "schematics/DE2-115 Genesis and Mega Drive gamepads 3V3 adapter.pdf", для варианта с питанием 3,3В.
-Для варианта с питанием 5В смотрите схему с преобразователем логических уровней - "schematics/DE2-115 Genesis and Mega Drive gamepads 5V adapter.pdf".
+Для варианта с питанием 5В смотрите схему с преобразователем логических уровней SN74LVC244A - "schematics/DE2-115 Genesis and Mega Drive gamepads 5V adapter.pdf".
 
-Назначение контактов GPIO для геймпадов первого и второго игрока:
+Назначение контактов GPIO используемых для подключения геймпадов первого и второго игрока (питание 3,3В):
 
-* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - gamepad 1 (CBUDLR, инвертированная логика)
-* JP5 pin  2, JP5 pin  4, JP5 pin  6, JP5 pin  8, JP5 pin 10, JP5 pin 14 - gamepad 2 (CBUDLR, инвертированная логика)
+* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 29, JP5 pin 30, JP5 pin 33, JP5 pin 37, JP5 pin 39 - gamepad 1 (C/Start, B/A, Up/Z, Down/Y, 3.3V, GND, Left/X, Right/Mode, Select)
+* JP5 pin 2, JP5 pin 4, JP5 pin 6, JP5 pin 8, JP5 pin 10, JP5 pin 12, JP5 pin 14, JP5 pin 16, JP5 pin 29 - gamepad 2 (C/Start, B/A, Up/Z, Down/Y, Left/X, GND, Right/Mode, Select, 3.3V)
 
-Назначение контактов на разъеме геймпада Mega Drive/Genesis в режиме совместимости с Master System (питание 3,3В):
+Назначение контактов на разъеме геймпада Mega Drive/Genesis (питание 3,3В):
 
-pin 9 - кнопка C, pin 6 - кнопка B, pin 1 - вверх (Up), pin 2 - вниз (Down), pin 3 - влево (Left), pin 4 - вправо (Right), pin 5 - питание 3,3В,
-pin 7 - сигнал выбора набора кнопок геймпада (3,3В), pin 8 - земля
+pin 1 - Up/Z, pin 2 - Down/Y, pin 3 - Left/X, pin 4 - Right/Mode, pin 5 - 3.3V, pin 6 - B/A, pin 7 - "Select" сигнал выбора набора кнопок геймпада, pin 8 - GND, pin 9 - C/Start
+
+Нумерация контактов в разъеме справа налево, по рядам. Первый справа контакт в верхнем ряду - pin 1. Последний - pin 5. Первый справа контакт в нижнем ряду - pin 6. Последний - pin 9.
 
 Большинство геймпадов Mega Drive и Genesis прекрасно работают с трехвольтовым питанием. Если ваш геймпад не работает от 3,3В,
 попробуйте пятивольтовую схему подключения.
@@ -63,18 +64,20 @@ pin 7 - сигнал выбора набора кнопок геймпада (3,
 ### Геймпады Master System
 
 К GPIO на DE2-115 также можно подключать геймпады Master System. В этом случае необходимо использовать схему с подтяжкой к 3,3В.
-Питание для самого геймпада не требуется.
+Питание для самого геймпада не требуется. Схему подключения смотрите в "schematics/DE2-115 Master System gamepads adapter.pdf".
 
-Схему подключения смотрите в "schematics/DE2-115 Master System gamepads adapter.pdf".
+Другая периферия Master System не поддерживается.
 
 Назначение контактов GPIO для геймпадов первого и второго игрока:
 
-* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (21UDLR, инвертированная логика)
-* JP5 pin  2, JP5 pin 4,  JP5 pin 6,  JP5 pin 8,  JP5 pin 10, JP5 pin 14 - SMS gamepad 2 (21UDLR, инвертированная логика)
+* JP5 pin 15, JP5 pin 19, JP5 pin 23, JP5 pin 27, JP5 pin 30, JP5 pin 33, JP5 pin 37 - SMS gamepad 1 (Button 2, Button 1, Up, Down, GND, Left, Right; инвертированная логика)
+* JP5 pin 2, JP5 pin 4, JP5 pin 6, JP5 pin 8, JP5 pin 10, JP5 pin 12, JP5 pin 14 - SMS gamepad 2 (Button 2, Button 1, Up, Down, Left, GND, Right; инвертированная логика)
 
 Назначение контактов на разъеме геймпада Master System:
 
-pin 9 - кнопка 2, pin 6 - кнопка 1, pin 1 - вверх (Up), pin 2 - вниз (Down), pin 3 - влево (Left), pin 4 - вправо (Right), pin 8 - земля
+pin 1 - Up, pin 2 - Down, pin 3 - Left, pin 4 - Right, pin 6 - кнопка 1, pin 8 - GND, pin 9 - кнопка 2
+
+Нумерация контактов в разъеме справа налево, по рядам. Первый справа контакт в верхнем ряду - pin 1. Последний - pin 5. Первый справа контакт в нижнем ряду - pin 6. Последний - pin 9.
 
 Кнопка 1 на SMS геймпаде используется как кнопка B геймпада Mega Drive/Genesis.
 Кнопка 2 на SMS геймпаде используется как кнопка C геймпада Mega Drive/Genesis.
