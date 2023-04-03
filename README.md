@@ -61,7 +61,7 @@ Most Genesis and Mega Drive gamepads work fine with 3.3V power. If your gamepads
 
 ### Master System or compatible gamepads 
 
-They can be connected also to the GPIO with 3.3V pull-up resistors. No power needs for the gamepad.
+They can be connected also to the GPIO. Gamepads need 3.3V pull-up resistors. Project uses an internal weak pull-up the FPGA. No power needs for the gamepad.
 See connection diagram in "schematics/DE2-115 Master System gamepads adapter.pdf".
 
 No support for other Master System accessories.
