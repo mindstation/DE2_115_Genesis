@@ -54,7 +54,7 @@ module ex_hps_io
 //ex_hps_io ports declaration
 	input             clk_sys;
 	
-	inout      [35:0] HPS_BUS;
+	inout      [36:0] HPS_BUS;
 	
 	// analog -127..+127, Y: [15:8], X: [7:0]
 	output reg [15:0] joystick_analog_0;  // not used
@@ -94,8 +94,8 @@ module ex_hps_io
 //***********************************the status register***********************************
 
 	always @(posedge clk_sys)
-		//           63                47                         31                         15                        0
-		status <= 64'b00000000000000_00_0_0_1_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0;
+		//            63                  46                44                   31                         15                        0
+		status <= {18'b00000000000000_00_0_0,HPS_BUS[36],45'b11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0};
 
 	//status[0] is reset (active HIGH)
 	//status[3:1] video_mixer, scale: 3'b100 enable CRT 75%, 3'b011 enable CRT 50%, 3'b010 enable CRT 25%. 3'b001 enable hq2x scale. 3'b000 - disable scandoubler
@@ -126,7 +126,7 @@ module ex_hps_io
 	//status[41:40] gun_mode, if 2'b00 in gen_io then GUN is disabled. The lightgun module, MOUSE_XY and JOY_X, JOY_Y, JOY: if 2'b11 then use mouse, 2'b01 use joypad at joystick_0, stick 0; 2'b10 or 2'b00 use joypad at joystick_1, stick 1.
 	//status[42] lightgun, gun_btn_mode. Use mouse buttons if status[42]==1, else use joypad buttons
 	//status[44:43] video_mixer, if 2'b00 then draw lightgun cross (?). The lightgun module: cross size 8'd1 at 0, cross size 8'd3 at 1. cross size 8'd0 at 2 and 3.
-	//status[45]=1 DE2_115_Genesis, MISTer SERJOYSTICK enabled (GPIO)
+	//status[45]=1 DE2_115_Genesis, MISTer SERJOYSTICKs enabled (GPIO), JOY1 and JOY2 ports disabled.
 	//status[46]=1 cofi_enable, active HIGH
 	//status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
 	//status[49:48]=0 then video_freak uses ARX and ARY selected by status[30], else ARX is status[49:48]-1 and ARY is 0

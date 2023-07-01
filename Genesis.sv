@@ -27,7 +27,9 @@ module emu
 	input          CLK_50M,
    input			   RESET,
 
-	input	 [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,	
+	input	 [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,
+
+	input				GENPADS_ENABLE,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output         CLK_VIDEO,
@@ -214,7 +216,7 @@ assign joystick_4 = JOY_4;
 ex_hps_io #(.WIDE(1)) ex_hps_io
 (
 	.clk_sys(clk_sys),
-	.HPS_BUS({FL_DQ,FL_ADDR,FL_RST_N,FL_CE_N,FL_OE_N,FL_WE_N,FL_WP_N}),
+	.HPS_BUS({GENPADS_ENABLE,FL_DQ,FL_ADDR,FL_RST_N,FL_CE_N,FL_OE_N,FL_WE_N,FL_WP_N}),
 
 	.joystick_analog_0({joy0_y, joy0_x}),
 	.joystick_analog_1({joy1_y, joy1_x}),

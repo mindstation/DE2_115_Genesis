@@ -28,6 +28,7 @@ module sys_top
 
 	// switch inputs
 	// SW[16] - RESET
+	// SW[15] - enable/disable MiSTer serial ports
 	// SW[5] - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
 	// SW[12] - joystick_1_B, SW[11] - joystick_1_C, SW[10] - joystick_1_Left, SW[9] - joystick_1_Up, SW[8] - joystick_1_Down, SW[7] - joystick_1_Right
    input  [17:0] SW, // Toggle Switches[17:0]
@@ -46,7 +47,7 @@ module sys_top
 	output        VGA_SYNC_N,
 	
 	/////////// AUDIO //////////
-	output		  AUDIO_L, // exHSMC_TX_D_P16, analog connection through RC-filter. See MiSTER IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
+	output		  AUDIO_L, // exHSMC_TX_D_P16, analog connection through RC-filter. See MiSTer IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
 	output		  AUDIO_R, // exHSMC_TX_D_N16, analog connection through RC-filter
 	
 	output  [0:0] LEDR, // LEDR[0] = led_user
@@ -74,8 +75,8 @@ module sys_top
 	output        DRAM_WE_N,
 
 	///////// USER IO ///////////
-	inout [35:0] GPIO, // [1], [3], [5], [7], [9], [11], [13] - MiSTER serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
-							 // [23], [25], [27], [29], [31], [33], [35] - MiSTER serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+	inout [35:0] GPIO, // [1], [3], [5], [7], [9], [11], [13] - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+							 // [23], [25], [27], [29], [31], [33], [35] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 
 	// FLASH interface
 	output		  FL_RST_N,
@@ -86,6 +87,19 @@ module sys_top
 	output [22:0] FL_ADDR,
 	input  [7:0]  FL_DQ
 );
+
+//////////////////////  DEBUG  ///////////////////////////////////
+
+reg [15:0] st_clk;
+(* noprune *) reg st_slow_clock;
+always @(posedge CLOCK_50) begin
+	if (st_clk < 16'd5000)
+		st_clk <= st_clk + 1'd1;
+	else begin
+		st_clk <= 1'd0;
+		st_slow_clock <= ~st_slow_clock;
+	end
+end
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -209,7 +223,7 @@ reg [12:0] arc1y = 0;
 reg [12:0] arc2x = 0;
 reg [12:0] arc2y = 0;
 
-wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTER sys_top.v(399).
+wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTer sys_top.v(399).
 wire [15:0] alsa_l = 0, alsa_r = 0;
 
 audio_out audio_out
@@ -247,7 +261,16 @@ audio_out audio_out
 );
 
 ////////////////  User I/O  /////////////////////////
-// Open-drain User port 1 (MiSTER SERJOYSTICK).
+// enable/disable MiSTer SERJOYSTICKs
+reg gpads_enable_syn = 1'b0;
+reg gpads_enable_b;
+always @(posedge CLOCK_50) begin
+	gpads_enable_b  <= SW[15];
+	gpads_enable_syn <= gpads_enable_b;
+end
+wire gpads_enable = gpads_enable_syn;
+
+// Open-drain User port 1 (MiSTer SERJOYSTICK).
 // [1], [3], [5], [7], [9], [11], [13] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 assign GPIO[1] = !user_out_1[1] ? 1'b0 : 1'bZ;
 assign GPIO[3] = !user_out_1[0] ? 1'b0 : 1'bZ;
@@ -265,7 +288,7 @@ assign user_in_1[2] = GPIO[9];
 assign user_in_1[6] = GPIO[11];
 assign user_in_1[4] = GPIO[13];
 
-// Open-drain User port 2 (MiSTER SERJOYSTICK).
+// Open-drain User port 2 (MiSTer SERJOYSTICK).
 // [23], [25], [27], [29], [31], [33], [35] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 assign GPIO[23] = !user_out_2[1] ? 1'b0 : 1'bZ;
 assign GPIO[25] = !user_out_2[0] ? 1'b0 : 1'bZ;
@@ -310,6 +333,8 @@ emu emu
 	.JOY_2(joystick_2),
 	.JOY_3(joystick_3),
 	.JOY_4(joystick_4),
+
+	.GENPADS_ENABLE(gpads_enable),
 
 	.VGA_R(r_out),
 	.VGA_G(g_out),
