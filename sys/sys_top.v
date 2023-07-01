@@ -87,19 +87,6 @@ module sys_top
 	input  [7:0]  FL_DQ
 );
 
-//////////////////////  DEBUG  ///////////////////////////////////
-
-reg [15:0] st_clk;
-(* noprune *) reg st_slow_clock;
-always @(posedge CLOCK_50) begin
-	if (st_clk < 16'd5000)
-		st_clk <= st_clk + 1'd1;
-	else begin
-		st_clk <= 1'd0;
-		st_slow_clock <= ~st_slow_clock;
-	end
-end
-
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
 assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
