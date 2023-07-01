@@ -28,19 +28,19 @@ module emu
    input			   RESET,
 
 	input	 [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,	
-	
+
 	//Base video clock. Usually equals to CLK_SYS.
 	output         CLK_VIDEO,
-	
+
 	//Multiple resolutions are supported using different CE_PIXEL rates.
 	//Must be based on CLK_VIDEO
 	output         CE_PIXEL,
-	
+
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
 	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
 	output [12:0] VIDEO_ARX,
 	output [12:0] VIDEO_ARY,
-	
+
 	output  [7:0]  VGA_R,
 	output  [7:0]  VGA_G,
 	output  [7:0]  VGA_B,
@@ -50,13 +50,13 @@ module emu
 	output         VGA_F1,
 	output  [1:0]  VGA_SL,
 	output         VGA_SCALER, // Force VGA scaler
-	
+
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
-	
+
 	output        LED_USER,  // 1 - ON, 0 - OFF.
-	
+
 	// b[1]: 0 - LED status is system status OR'd with b[0]
 	//       1 - LED status is controled solely by b[0]
 	// hint: supply 2'b00 to let the system control the LED.
@@ -81,19 +81,21 @@ module emu
 	output         SDRAM_nCAS,
 	output         SDRAM_nRAS,
 	output         SDRAM_nWE,
-	
+
 	input         UART_CTS,
 	output        UART_RTS,
 	input         UART_RXD,
 	output        UART_TXD,
 	output        UART_DTR,
 	input         UART_DSR,
-	
-	// Open-drain User port.
+
+	// Open-drain User ports.
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,	
-	
+	input   [6:0] USER_IN_1,
+	output  [6:0] USER_OUT_1,
+	input   [6:0] USER_IN_2,
+	output  [6:0] USER_OUT_2,
+
 	// FLASH interface
 	input    [7:0] FL_DQ,
 	output  [22:0] FL_ADDR,
@@ -250,7 +252,6 @@ pll pll
 	.inclk0(CLK_50M),
 	.c0(clk_sys),
 	.c1(clk_ram),
-	.c3(), //SignalTap
 	.locked(locked)
 );
 
@@ -352,7 +353,8 @@ system system
 	.GUN_C(lg_c),
 	.GUN_START(lg_start),
 
-	.SERJOYSTICK_IN(SERJOYSTICK_IN),
+	.SERJOYSTICK_IN_1(SERJOYSTICK_IN_1),
+	.SERJOYSTICK_IN_2(SERJOYSTICK_IN_2),
 	.SER_OPT(SER_OPT),
 
 	.ENABLE_FM(~dbg_menu | ~status[32]),
@@ -400,7 +402,8 @@ system system
 
 	.GG_AVAILABLE(gg_available),
 
-	.SERJOYSTICK_OUT(SERJOYSTICK_OUT),
+	.SERJOYSTICK_OUT_1(SERJOYSTICK_OUT_1),
+	.SERJOYSTICK_OUT_2(SERJOYSTICK_OUT_2),
 
 	.ROM_ADDR(rom_addr),
 	.ROM_WDATA(rom_wdata),
@@ -765,32 +768,56 @@ end
 //No SD support. SAVE/LOAD for SD cart removed.
 
 ////////////////  MiSTER SERJOYSTICK /////////////////////////
-wire [7:0] SERJOYSTICK_IN;
-wire [7:0] SERJOYSTICK_OUT;
+wire [7:0] SERJOYSTICK_IN_1,SERJOYSTICK_IN_2;
+wire [7:0] SERJOYSTICK_OUT_1,SERJOYSTICK_OUT_2;
 wire [1:0] SER_OPT;
 
 always @(posedge clk_sys) begin
 	if (status[45]) begin
-		SERJOYSTICK_IN[0] <= USER_IN[1];//up
-		SERJOYSTICK_IN[1] <= USER_IN[0];//down
-		SERJOYSTICK_IN[2] <= USER_IN[5];//left
-		SERJOYSTICK_IN[3] <= USER_IN[3];//right
-		SERJOYSTICK_IN[4] <= USER_IN[2];//b TL
-		SERJOYSTICK_IN[5] <= USER_IN[6];//c TR GPIO7
-		SERJOYSTICK_IN[6] <= USER_IN[4];//  TH
-		SERJOYSTICK_IN[7] <= 0;
+		// port 1
+		SERJOYSTICK_IN_1[0] <= USER_IN_1[1];//up
+		SERJOYSTICK_IN_1[1] <= USER_IN_1[0];//down
+		SERJOYSTICK_IN_1[2] <= USER_IN_1[5];//left
+		SERJOYSTICK_IN_1[3] <= USER_IN_1[3];//right
+		SERJOYSTICK_IN_1[4] <= USER_IN_1[2];//b TL
+		SERJOYSTICK_IN_1[5] <= USER_IN_1[6];//c TR GPIO7
+		SERJOYSTICK_IN_1[6] <= USER_IN_1[4];//  TH
+		SERJOYSTICK_IN_1[7] <= 0;
+		USER_OUT_1[1] <= SERJOYSTICK_OUT_1[0];
+		USER_OUT_1[0] <= SERJOYSTICK_OUT_1[1];
+		USER_OUT_1[5] <= SERJOYSTICK_OUT_1[2];
+		USER_OUT_1[3] <= SERJOYSTICK_OUT_1[3];
+		USER_OUT_1[2] <= SERJOYSTICK_OUT_1[4];
+		USER_OUT_1[6] <= SERJOYSTICK_OUT_1[5];
+		USER_OUT_1[4] <= SERJOYSTICK_OUT_1[6];
+
+		// port 2
+		SERJOYSTICK_IN_2[0] <= USER_IN_2[1];//up
+		SERJOYSTICK_IN_2[1] <= USER_IN_2[0];//down
+		SERJOYSTICK_IN_2[2] <= USER_IN_2[5];//left
+		SERJOYSTICK_IN_2[3] <= USER_IN_2[3];//right
+		SERJOYSTICK_IN_2[4] <= USER_IN_2[2];//b TL
+		SERJOYSTICK_IN_2[5] <= USER_IN_2[6];//c TR GPIO7
+		SERJOYSTICK_IN_2[6] <= USER_IN_2[4];//  TH
+		SERJOYSTICK_IN_2[7] <= 0;
+		USER_OUT_2[1] <= SERJOYSTICK_OUT_2[0];
+		USER_OUT_2[0] <= SERJOYSTICK_OUT_2[1];
+		USER_OUT_2[5] <= SERJOYSTICK_OUT_2[2];
+		USER_OUT_2[3] <= SERJOYSTICK_OUT_2[3];
+		USER_OUT_2[2] <= SERJOYSTICK_OUT_2[4];
+		USER_OUT_2[6] <= SERJOYSTICK_OUT_2[5];
+		USER_OUT_2[4] <= SERJOYSTICK_OUT_2[6];
+
+		// ports swap
 		SER_OPT[0] <= ~status[4];
 		SER_OPT[1] <= status[4];
-		USER_OUT[1] <= SERJOYSTICK_OUT[0];
-		USER_OUT[0] <= SERJOYSTICK_OUT[1];
-		USER_OUT[5] <= SERJOYSTICK_OUT[2];
-		USER_OUT[3] <= SERJOYSTICK_OUT[3];
-		USER_OUT[2] <= SERJOYSTICK_OUT[4];
-		USER_OUT[6] <= SERJOYSTICK_OUT[5];
-		USER_OUT[4] <= SERJOYSTICK_OUT[6];
 	end else begin
-		SER_OPT  <= 0;
-		USER_OUT <= '1;
+		// port 1
+		USER_OUT_1 <= '1;
+		// port 2
+		USER_OUT_2 <= '1;
+		// ports swap
+		SER_OPT <= '0;
 	end
 end
 

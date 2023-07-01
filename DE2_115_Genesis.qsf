@@ -50,18 +50,6 @@ set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
 set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (SystemVerilog)"
 set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "SYSTEMVERILOG HDL" -section_id eda_simulation
 ## ASSIGNMENTS
-# Weal pull-up for gamepad inputs
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[1]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[3]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[5]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[7]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[9]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[11]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[12]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[16]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[20]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[24]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[28]
 # Pin assigments
 set_location_assignment PIN_D2 -to AUD_ADCDAT
 set_location_assignment PIN_C2 -to AUD_ADCLRCK
@@ -1123,13 +1111,6 @@ set_global_assignment -name SIGNALTAP_FILE output_files/DE2115_signaltap_dbgConf
 set_global_assignment -name SIGNALTAP_FILE output_files/DE2115_signaltap_dbgConfstp_wholeCore190421.stp
 set_global_assignment -name SIGNALTAP_FILE output_files/DE2115_signaltap_MisterGenesis_addrPlus1Loading.stp
 set_global_assignment -name SIGNALTAP_FILE output_files/DE2115_signaltap_MisterGenesis_addrPlus2Loading.stp
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[35]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[34]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[33]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[32]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[31]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[30]
-set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[29]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to GPIO[35]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to GPIO[34]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to GPIO[33]
@@ -1151,6 +1132,7 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_global_assignment -name SIGNALTAP_FILE output_files/DE2115_signaltap_gamepads.stp
+
 
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

@@ -95,11 +95,11 @@ module ex_hps_io
 
 	always @(posedge clk_sys)
 		//           63                47                         31                         15                        0
-		status <= 64'b00000000000000_00_0_0_0_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0;
+		status <= 64'b00000000000000_00_0_0_1_11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0;
 
 	//status[0] is reset (active HIGH)
 	//status[3:1] video_mixer, scale: 3'b100 enable CRT 75%, 3'b011 enable CRT 50%, 3'b010 enable CRT 25%. 3'b001 enable hq2x scale. 3'b000 - disable scandoubler
-	//status[4] system, joystick_1 and joystick_0 swap. 0 - swap disabled. Also set SER_OPT system/gen_io parameter: use SERJOYSTICK on port 1 if status[4]==1'b1, or port 2 if status[4]==1'b0
+	//status[4] system, joystick_1 and joystick_0 swap. 0 - swap disabled. Also set SER_OPT system/gen_io parameter: use SERJOYSTICK on port 1 if status[4]==1'b0, or port 2 if status[4]==1'b1
 	//status[5] system, J3BUT set a 3 buttons controller mode (active LOW)
 	//status[7:6] system/multitap/gen_io EXPORT parameter: 2'b00 - Japan, 2'b01 - USA, 2b'10 - Europe. status[7]=1 system, Genesis PAL mode (VDP, multitap)
 	//status[9:8]=2'b10 auto region disabled (DE2_115_Genesis). Can be IGNORED. 2'b00 region by file extention, 2'b01 region by ROM header. Set status_in[7:6] HSP parameter by region_req[1:0]
