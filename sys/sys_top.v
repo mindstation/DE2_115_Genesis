@@ -75,8 +75,8 @@ module sys_top
 	output        DRAM_WE_N,
 
 	///////// USER IO ///////////
-	inout [35:0] GPIO, // [1], [3], [5], [7], [9], [11], [13] - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
-							 // [23], [25], [27], [29], [31], [33], [35] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+	inout [35:0] GPIO, // [13], [11], [9], [5], [1], [3], [7] - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+							 // [23], [25], [27], [31], [33], [35], [29] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 
 	// FLASH interface
 	output		  FL_RST_N,
@@ -271,40 +271,40 @@ end
 wire gpads_enable = gpads_enable_syn;
 
 // Open-drain User port 1 (MiSTer SERJOYSTICK).
-// [1], [3], [5], [7], [9], [11], [13] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
-assign GPIO[1] = !user_out_1[1] ? 1'b0 : 1'bZ;
-assign GPIO[3] = !user_out_1[0] ? 1'b0 : 1'bZ;
-assign GPIO[5] = !user_out_1[5] ? 1'b0 : 1'bZ;
-assign GPIO[7] = !user_out_1[3] ? 1'b0 : 1'bZ;
-assign GPIO[9] = !user_out_1[2] ? 1'b0 : 1'bZ;
-assign GPIO[11] = !user_out_1[6] ? 1'b0 : 1'bZ;
-assign GPIO[13] = !user_out_1[4] ? 1'b0 : 1'bZ;
+// [13], [11], [9], [5], [1], [3], [7] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+assign GPIO[13] = !user_out_1[1] ? 1'b0 : 1'bZ;
+assign GPIO[11] = !user_out_1[0] ? 1'b0 : 1'bZ;
+assign GPIO[9]  = !user_out_1[5] ? 1'b0 : 1'bZ;
+assign GPIO[5]  = !user_out_1[3] ? 1'b0 : 1'bZ;
+assign GPIO[1]  = !user_out_1[2] ? 1'b0 : 1'bZ;
+assign GPIO[3]  = !user_out_1[6] ? 1'b0 : 1'bZ;
+assign GPIO[7]  = !user_out_1[4] ? 1'b0 : 1'bZ;
 
-assign user_in_1[1] = GPIO[1];
-assign user_in_1[0] = GPIO[3];
-assign user_in_1[5] = GPIO[5];
-assign user_in_1[3] = GPIO[7];
-assign user_in_1[2] = GPIO[9];
-assign user_in_1[6] = GPIO[11];
-assign user_in_1[4] = GPIO[13];
+assign user_in_1[1] = GPIO[13];
+assign user_in_1[0] = GPIO[11];
+assign user_in_1[5] = GPIO[9];
+assign user_in_1[3] = GPIO[5];
+assign user_in_1[2] = GPIO[1];
+assign user_in_1[6] = GPIO[3];
+assign user_in_1[4] = GPIO[7];
 
 // Open-drain User port 2 (MiSTer SERJOYSTICK).
-// [23], [25], [27], [29], [31], [33], [35] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+// [23], [25], [27], [31], [33], [35], [29] - {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 assign GPIO[23] = !user_out_2[1] ? 1'b0 : 1'bZ;
 assign GPIO[25] = !user_out_2[0] ? 1'b0 : 1'bZ;
 assign GPIO[27] = !user_out_2[5] ? 1'b0 : 1'bZ;
-assign GPIO[29] = !user_out_2[3] ? 1'b0 : 1'bZ;
-assign GPIO[31] = !user_out_2[2] ? 1'b0 : 1'bZ;
-assign GPIO[33] = !user_out_2[6] ? 1'b0 : 1'bZ;
-assign GPIO[35] = !user_out_2[4] ? 1'b0 : 1'bZ;
+assign GPIO[31] = !user_out_2[3] ? 1'b0 : 1'bZ;
+assign GPIO[33] = !user_out_2[2] ? 1'b0 : 1'bZ;
+assign GPIO[35] = !user_out_2[6] ? 1'b0 : 1'bZ;
+assign GPIO[29] = !user_out_2[4] ? 1'b0 : 1'bZ;
 
 assign user_in_2[1] = GPIO[23];
 assign user_in_2[0] = GPIO[25];
 assign user_in_2[5] = GPIO[27];
-assign user_in_2[3] = GPIO[29];
-assign user_in_2[2] = GPIO[31];
-assign user_in_2[6] = GPIO[33];
-assign user_in_2[4] = GPIO[35];
+assign user_in_2[3] = GPIO[31];
+assign user_in_2[2] = GPIO[33];
+assign user_in_2[6] = GPIO[35];
+assign user_in_2[4] = GPIO[29];
 
 ///////////////////  User module connection ////////////////////////////
 wire [15:0] audio_l, audio_r;
