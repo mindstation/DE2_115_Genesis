@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Gregory Estrade (greg@torlus.com)
 // Copyright (c) 2018 Sorgelig
+// Copyright (c) 2023 Alexander Kirichenko
 //
 // All rights reserved
 //
