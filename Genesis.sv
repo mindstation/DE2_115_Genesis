@@ -1,6 +1,6 @@
 //============================================================================
 //  MiSTer FPGAGen port to DE2-115
-//  Copyright (c) 2020-2021 Alexander Kirichenko
+//  Copyright (c) 2020-2025 Alexander Kirichenko
 //  Original MiSTer port: Copyright (c) 2017-2019 Sorgelig
 //
 //  YM2612 implementation by Jose Tejada Gomez. Twitter: @topapate
@@ -24,34 +24,39 @@
 module emu
 (
 	//Master input clock
-	input          CLK_50M,
-   input			   RESET,
+	input         CLK_50M,
 
-	input	 [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,
+	//Async reset from top-level module.
+	//Can be used as initial reset.
+	input         RESET,
 
-	input				GENPADS_ENABLE,
+	input [31:0]  JOY_0,JOY_1,JOY_2,JOY_3,JOY_4,
+
+	//Enable GPIO gamepad ports
+	input         GENPADS_ENABLE,
 
 	//Base video clock. Usually equals to CLK_SYS.
-	output         CLK_VIDEO,
+	output        CLK_VIDEO,
 
 	//Multiple resolutions are supported using different CE_PIXEL rates.
 	//Must be based on CLK_VIDEO
-	output         CE_PIXEL,
+	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
 	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
 	output [12:0] VIDEO_ARX,
 	output [12:0] VIDEO_ARY,
 
-	output  [7:0]  VGA_R,
-	output  [7:0]  VGA_G,
-	output  [7:0]  VGA_B,
-	output         VGA_HS,
-	output         VGA_VS,
-	output         VGA_DE,    // = ~(VBlank | HBlank)
-	output         VGA_F1,
-	output  [1:0]  VGA_SL,
-	output         VGA_SCALER, // Force VGA scaler
+	output  [7:0] VGA_R,
+	output  [7:0] VGA_G,
+	output  [7:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
+	output        VGA_DE,    // = ~(VBlank | HBlank)
+	output        VGA_F1,
+	output  [1:0] VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
+	output        VGA_DISABLE, // analog out is off
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
@@ -59,30 +64,40 @@ module emu
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
-	// b[1]: 0 - LED status is system status OR'd with b[0]
-	//       1 - LED status is controled solely by b[0]
-	// hint: supply 2'b00 to let the system control the LED.
-	output  [1:0]  LED_POWER,
-	output  [1:0]  LED_DISK,
+	//b[1]: 0 - LED status is system status OR'd with b[0]
+	//      1 - LED status is controled solely by b[0]
+	//hint: supply 2'b00 to let the system control the LED.
+	output  [1:0] LED_POWER,
+	output  [1:0] LED_DISK,
 
-	input          CLK_AUDIO, // 24.576 MHz
-	output [15:0]  AUDIO_L,
-	output [15:0]  AUDIO_R,
-	output         AUDIO_S,
-	output  [1:0]  AUDIO_MIX,
+	input         CLK_AUDIO, // 24.576 MHz
+	output [15:0] AUDIO_L,
+	output [15:0] AUDIO_R,
+	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
+	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 
-	// SDRAM interface with lower latency
-	output         SDRAM_CLK,
-	output         SDRAM_CKE,
-	output [12:0]  SDRAM_A,
-	output  [1:0]  SDRAM_BA,
-	inout  [15:0]  SDRAM_DQ,
-	output         SDRAM_DQML,
-	output         SDRAM_DQMH,
-	output         SDRAM_nCS,
-	output         SDRAM_nCAS,
-	output         SDRAM_nRAS,
-	output         SDRAM_nWE,
+	//ADC
+	inout   [3:0] ADC_BUS,
+
+	//SD-SPI
+	output        SD_SCK,
+	output        SD_MOSI,
+	input         SD_MISO,
+	output        SD_CS,
+	input         SD_CD,
+
+	//SDRAM interface with lower latency
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+	output [12:0] SDRAM_A,
+	output  [1:0] SDRAM_BA,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nCS,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nWE,
 
 	input         UART_CTS,
 	output        UART_RTS,
@@ -91,37 +106,36 @@ module emu
 	output        UART_DTR,
 	input         UART_DSR,
 
-	// Open-drain User ports.
-	// Set USER_OUT to 1 to read from USER_IN.
+	//Open-drain User ports.
+	//Set USER_OUT to 1 to read from USER_IN.
 	input   [6:0] USER_IN_1,
 	output  [6:0] USER_OUT_1,
 	input   [6:0] USER_IN_2,
 	output  [6:0] USER_OUT_2,
 
-	// FLASH interface
-	input    [7:0] FL_DQ,
-	output  [22:0] FL_ADDR,
-	output         FL_RST_N,
-	output         FL_CE_N,
-	output         FL_OE_N,
-	output         FL_WE_N,
-	output         FL_WP_N
+	//FLASH interface
+	input   [7:0] FL_DQ,
+	output [22:0] FL_ADDR,
+	output        FL_RST_N,
+	output        FL_CE_N,
+	output        FL_OE_N,
+	output        FL_WE_N,
+	output        FL_WP_N
 );
 
-assign {UART_RTS, UART_TXD, UART_DTR} = 'b0;
+// MiSTer ADCin board for a tape loading (not used)
+assign ADC_BUS  = 'Z;
+// MiSTer secondary SD (not used)
+assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-// b[1]: 0 - LED status is system status OR'd with b[0]
-	//       1 - LED status is controled solely by b[0]
-	// hint: supply 2'b00 to let the system control the LED.
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign LED_USER  = cart_download;
 
-assign VGA_SCALER= 0;
+assign VGA_SCALER  = 0;
+assign VGA_DISABLE = 0;
 
-// 1 - signed audio samples, 0 - unsigned
-assign AUDIO_S = 1;
-// 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
+assign AUDIO_S   = 1;
 assign AUDIO_MIX = 0;
 
 assign HDMI_FREEZE = 0;
@@ -813,6 +827,19 @@ always @(posedge clk_sys) begin
 		// ports swap
 		SER_OPT[0] <= ~status[4];
 		SER_OPT[1] <= status[4];
+	end else if (piano) begin
+		SERJOYSTICK_IN_1[0] <= piano_joypad_do;//up
+		SERJOYSTICK_IN_1[1] <= 0;//down
+		SERJOYSTICK_IN_1[2] <= 0;//left
+		SERJOYSTICK_IN_1[3] <= 0;//right
+		SERJOYSTICK_IN_1[4] <= 0;//b TL
+		SERJOYSTICK_IN_1[5] <= 0;//c TR GPIO7
+		SERJOYSTICK_IN_1[6] <= 0;//  TH
+		SERJOYSTICK_IN_1[7] <= 0;
+		SER_OPT[0] <= 1'b0;
+		SER_OPT[1] <= 1'b1;
+		piano_clock <= SERJOYSTICK_OUT_1[5];
+		piano_strobe <= SERJOYSTICK_OUT_1[6];
 	end else begin
 		// port 1
 		USER_OUT_1 <= '1;
@@ -822,6 +849,24 @@ always @(posedge clk_sys) begin
 		SER_OPT <= '0;
 	end
 end
+
+// "Miracle Piano Teaching System" support through UART
+assign {UART_RTS, UART_DTR} = 1;
+wire [15:0] uart_data;
+wire piano_joypad_do;
+wire piano_clock;
+wire piano_strobe;
+wire piano = status[56];
+miraclepiano miracle(
+	.clk(clk_sys),
+	.reset(reset || !piano),
+	.strobe(piano_strobe),
+	.joypad_o(piano_joypad_do),
+	.joypad_clock(piano_clock),
+	.data_o(uart_data),
+	.txd(UART_TXD),
+	.rxd(UART_RXD)
+);
 
 ////////////////  DEBUG /////////////////////////
 reg       VDP_BGA_EN = 1;

@@ -31,7 +31,7 @@ module sys_top
 	// SW[15] - enable/disable MiSTer serial ports
 	// SW[5] - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
 	// SW[12] - joystick_1_B, SW[11] - joystick_1_C, SW[10] - joystick_1_Left, SW[9] - joystick_1_Up, SW[8] - joystick_1_Down, SW[7] - joystick_1_Right
-   input  [17:0] SW, // Toggle Switches[17:0]
+	input  [17:0] SW, // Toggle Switches[17:0]
 
 	// button inputs
 	// KEY[3] - joystick_0_START, KEY[2] - joystick_0_A, KEY[1] - joystick_1_START, KEY[0] - joystick_1_A
@@ -49,7 +49,13 @@ module sys_top
 	/////////// AUDIO //////////
 	output		  AUDIO_L, // exHSMC_TX_D_P16, analog connection through RC-filter. See MiSTer IO Board schematic (https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/iobrd_5.5.pdf)
 	output		  AUDIO_R, // exHSMC_TX_D_N16, analog connection through RC-filter
-	
+
+	//////////// SDCARD //////////
+	output		  SD_CLK,
+	inout		  SD_CMD,
+	inout	[3:0] SD_DAT,
+	//input		  SD_WP_N, Does not connected, no SD card support now
+
 	output  [0:0] LEDR, // LEDR[0] = led_user
 	output  [1:0] LEDG,
 
@@ -76,7 +82,7 @@ module sys_top
 
 	///////// USER IO ///////////
 	inout [35:0] GPIO, // [13], [11], [9], [5], [3], [1], [7] - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
-							 // [23], [25], [27], [31], [33], [35], [29] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+						// [23], [25], [27], [31], [33], [35], [29] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
 
 	// FLASH interface
 	output		  FL_RST_N,
@@ -88,18 +94,14 @@ module sys_top
 	input  [7:0]  FL_DQ
 );
 
-//////////////////////  DEBUG  ///////////////////////////////////
+//////////////////////  SD card  ////////////////////////////////////////
+wire SD_CS, SD_MOSI, SD_MISO;
 
-reg [15:0] st_clk;
-(* noprune *) reg st_slow_clock;
-always @(posedge CLOCK_50) begin
-	if (st_clk < 16'd5000)
-		st_clk <= st_clk + 1'd1;
-	else begin
-		st_clk <= 1'd0;
-		st_slow_clock <= ~st_slow_clock;
-	end
-end
+assign SD_MISO = SD_DAT[0];
+
+assign SD_DAT[2:1] = 2'bZZ;
+assign SD_DAT[3]   = SD_CS;
+assign SD_CMD      = SD_MOSI;
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -365,6 +367,8 @@ emu emu
 	.AUDIO_S(audio_s),
 	.AUDIO_MIX(audio_mix),
 
+	.ADC_BUS(), // MiSTer ADCin board for a tape loading (not used)
+
 	//SDRAM interface with lower latency
 	.SDRAM_CLK(DRAM_CLK),
 	.SDRAM_CKE(DRAM_CKE),
@@ -377,12 +381,18 @@ emu emu
 	.SDRAM_nCAS(DRAM_CAS_N),
 	.SDRAM_nRAS(DRAM_RAS_N),
 	.SDRAM_nWE(DRAM_WE_N),
-	
+
+	.SD_SCK(SD_CLK),
+	.SD_MOSI(SD_MOSI),
+	.SD_MISO(SD_MISO),
+	.SD_CS(SD_CS),
+	.SD_CD(), // a sdmicro slot CARD DETECT, here isn't the detect signal on a SD slot
+
 	.USER_OUT_1(user_out_1),
 	.USER_IN_1(user_in_1),
 	.USER_OUT_2(user_out_2),
 	.USER_IN_2(user_in_2),
-	
+
 	// FLASH controller interface
 	.FL_DQ(FL_DQ),
 	.FL_ADDR(FL_ADDR),	

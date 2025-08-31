@@ -95,7 +95,7 @@ module ex_hps_io
 
 	always @(posedge clk_sys)
 		//            63                  46                44                   31                         15                        0
-		status <= {18'b00000000000000_00_0_0,HPS_BUS[36],45'b11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0};
+		status <= {18'b00000000_0_00000_00_0_0,HPS_BUS[36],45'b11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10_01_1_0_010_0};
 
 	//status[0] is reset (active HIGH)
 	//status[3:1] video_mixer, scale: 3'b100 enable CRT 75%, 3'b011 enable CRT 50%, 3'b010 enable CRT 25%. 3'b001 enable hq2x scale. 3'b000 - disable scandoubler
@@ -131,8 +131,9 @@ module ex_hps_io
 	//status[47]=1 cofi_enable if VDP TRANSP_DETECT is HIGH too
 	//status[49:48]=0 then video_freak uses ARX and ARY selected by status[30], else ARX is status[49:48]-1 and ARY is 0
 	//status[53:50] CROP_OFF -16...+15, video_freak.sv/vadj
+	//status[56]=0 "Miracle piano" enable, active HIGH
 	//status[63:48] loopback to HPS_BUS.
-	//Ignored {status[63:48], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
+	//Ignored {status[63:57], status[55:48], status[28:27], status[22:21], status[17:16], status[13], status[12], status[9:8]}
 
 
 ///////////////////////////////////////////////////
