@@ -27,6 +27,7 @@ module sys_top
 	input         CLOCK2_50,
 
 	// switch inputs
+	// SW[17] - PAL on/off
 	// SW[16] - RESET
 	// SW[15] - enable/disable MiSTer serial ports
 	// SW[5] - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
@@ -337,6 +338,8 @@ emu emu
 	.JOY_4(joystick_4),
 
 	.GENPADS_ENABLE(gpads_enable),
+
+	.PAL_ENABLE(SW[17]),
 
 	.VGA_R(r_out),
 	.VGA_G(g_out),

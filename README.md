@@ -29,6 +29,7 @@ ROM size is set by the ROM header. Only exception is Super Street Fighter 2 New 
 
 ## Board keys
 
+* SW[17] - Genesis PAL mode on/off, NTSC when SW[17] is in the down position
 * SW[16] - Genesis RESET
 * SW[15] - enable/disable gamepads ports
 * SW[5]  - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
@@ -43,7 +44,7 @@ Switch on SW[15] for gamepads use. It will disable Gamepads emulation by onboard
 
 3 or 6 buttons gamepad can be connected to GPIO. Like other Genesis accessories.
 
-A cheap 3.3V connection option see in "schematics/DE2-115 Genesis and Mega Drive gamepads 3V3 adapter.pdf". This is suitable for accessories are working with 3.3V power supply. Gamepads work. The scheme is not recommended use with Zero Tolerance Link Cable.
+A cheap 3.3V connection option see in "schematics/DE2-115 Genesis and Mega Drive gamepads 3V3 adapter.pdf". This is suitable for accessories are working with 3.3V power supply. Gamepads work. The scheme is not recommended for use with Zero Tolerance Link Cable.
 
 See "schematics/DE2-115 Genesis and Mega Drive gamepads 5V SNAC adapter.pdf" for a 5V connection by a MiSTer SNAC logic level converter module. This option is probably compatible with any Genesis accessories.
 

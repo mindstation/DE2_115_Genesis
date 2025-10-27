@@ -35,6 +35,9 @@ module emu
 	//Enable GPIO gamepad ports
 	input         GENPADS_ENABLE,
 
+	//Switch to PAL mode if high (realtime)
+	input         PAL_ENABLE,
+
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
 
@@ -230,7 +233,7 @@ assign joystick_4 = JOY_4;
 ex_hps_io #(.WIDE(1)) ex_hps_io
 (
 	.clk_sys(clk_sys),
-	.HPS_BUS({GENPADS_ENABLE,FL_DQ,FL_ADDR,FL_RST_N,FL_CE_N,FL_OE_N,FL_WE_N,FL_WP_N}),
+	.HPS_BUS({GENPADS_ENABLE,PAL_ENABLE,FL_DQ,FL_ADDR,FL_RST_N,FL_CE_N,FL_OE_N,FL_WE_N,FL_WP_N}),
 
 	.joystick_analog_0({joy0_y, joy0_x}),
 	.joystick_analog_1({joy1_y, joy1_x}),
@@ -265,11 +268,102 @@ wire clk_sys, clk_ram, locked;
 
 pll pll
 (
+	.areset(pll_cfg_areset),
+	.configupdate(pll_cfg_configupdate),
 	.inclk0(CLK_50M),
+	.scanclk(pll_cfg_scanclk),
+	.scanclkena(pll_cfg_scanclkena),
+	.scandata(pll_cfg_scandata),
 	.c0(clk_sys),
 	.c1(clk_ram),
-	.locked(locked)
+	.locked(locked),
+	.scandataout(pll_scandataout),
+	.scandone(pll_scandone)
 );
+
+wire pll_cfg_areset;
+wire pll_scandataout, pll_scandone;
+wire pll_cfg_rom_data_mux;
+wire pll_cfg_configupdate, pll_cfg_scanclk, pll_cfg_scanclkena, pll_cfg_scandata;
+wire [7:0] pll_cfg_rom_addr;
+wire pll_cfg_rom_en;
+
+pll_cfg	pll_cfg_inst (
+	.clock(CLK_50M),
+	.counter_param(3'b0), // read/write single param ports
+	.counter_type(4'b0),  // read/write single param ports
+	.data_in(9'b0),       // read/write single param ports
+	.pll_areset_in(1'b0),
+	.pll_scandataout(pll_scandataout),
+	.pll_scandone(pll_scandone),
+	.read_param(),        // read/write single param ports
+	.reconfig(pll_cfg_reconfig_fsm),
+	.reset(1'b0),                   // active HIGH
+	.reset_rom_address(1'b0),
+	.rom_data_in(pal_r ? pal_rom_data : ntsc_rom_data),
+	.write_from_rom(pll_cfg_rom_write_fsm),
+	.write_param(),       // read/write single param ports
+	.busy(pll_cfg_busy_fsm),
+	.data_out(),          // read/write single param ports
+	.pll_areset(pll_cfg_areset),
+	.pll_configupdate(pll_cfg_configupdate),
+	.pll_scanclk(pll_cfg_scanclk),
+	.pll_scanclkena(pll_cfg_scanclkena),
+	.pll_scandata(pll_cfg_scandata),
+	.rom_address_out(pll_cfg_rom_addr),
+	.write_rom_ena(pll_cfg_rom_en)
+	);
+
+wire ntsc_rom_data, pal_rom_data;
+
+pll_ntsc_rom pll_ntsc_rom_inst (
+	.clock(CLK_50M),
+	.rden(pll_cfg_rom_en),
+	.address(pll_cfg_rom_addr),
+	.q(ntsc_rom_data)
+	);
+
+pll_pal_rom pll_pal_rom_inst (
+	.clock(CLK_50M),
+	.rden(pll_cfg_rom_en),
+	.address(pll_cfg_rom_addr),
+	.q(pal_rom_data)
+	);
+
+wire pll_cfg_busy_fsm;
+logic pll_cfg_rom_write_fsm;
+logic pll_cfg_reconfig_fsm;
+logic pal_r = '0;
+
+always_ff @(posedge CLK_50M) begin
+	logic pald = '0, pald2 = '0;
+	logic [1:0] state = '0;
+
+	pald <= PAL;
+	pald2 <= pald;
+
+	pll_cfg_rom_write_fsm <= '0;
+	pll_cfg_reconfig_fsm  <= '0;
+
+	if(!pll_cfg_busy_fsm) begin
+		case(state)
+			0 : begin
+					if(pald2 == pald && pald2 != pal_r) begin
+						state <= state + 1'd1;
+						pal_r <= pald2;
+					end
+				end
+			1 : begin
+					pll_cfg_rom_write_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			2 : begin
+					pll_cfg_reconfig_fsm <= 1'b1;
+					state <= '0;
+				end
+		endcase
+	end
+end
 
 ///////////////////////////////////////////////////
 // Code loading for WIDE IO (16 bit)

@@ -30,6 +30,7 @@ All rights reserved
 
 Используются следующие кнопки и переключатели:
 
+* SW[17] - включение/выключение PAL режима Mega Drive/Genesis, NTSC режим когда SW[17] находится в нижнем положении
 * SW[16] - сброс Mega Drive/Genesis
 * SW[15] - включить/выключить порты геймпадов
 * SW[5]  - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right
