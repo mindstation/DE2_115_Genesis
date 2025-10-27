@@ -18,7 +18,7 @@
 --    Device Part: -
 --    Device Speed Grade: -
 --    PLL Scan Chain: Fast PLL (144 bits)
---    File Name: /home/greyman/github/DE2_115_Genesis/rtl/pll_pal.mif
+--    File Name: DE2_115_Genesis/rtl/pll_pal.mif
 --    Generated: Mon Sep  8 09:52:33 2025
 
 WIDTH=1;
