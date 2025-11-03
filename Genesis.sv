@@ -283,67 +283,51 @@ pll pll
 
 wire pll_cfg_areset;
 wire pll_scandataout, pll_scandone;
-wire pll_cfg_rom_data_mux;
 wire pll_cfg_configupdate, pll_cfg_scanclk, pll_cfg_scanclkena, pll_cfg_scandata;
-wire [7:0] pll_cfg_rom_addr;
-wire pll_cfg_rom_en;
 
 pll_cfg	pll_cfg_inst (
 	.clock(CLK_50M),
-	.counter_param(3'b0), // read/write single param ports
-	.counter_type(4'b0),  // read/write single param ports
-	.data_in(9'b0),       // read/write single param ports
+	.counter_param(pll_cfg_cnt_param_fsm), // read/write single param ports
+	.counter_type(pll_cfg_cnt_type_fsm),   // read/write single param ports
+	.data_in(pll_cfg_data_in_fsm),         // write single param data
 	.pll_areset_in(1'b0),
 	.pll_scandataout(pll_scandataout),
 	.pll_scandone(pll_scandone),
-	.read_param(),        // read/write single param ports
+	.read_param(),        // read single param
 	.reconfig(pll_cfg_reconfig_fsm),
-	.reset(1'b0),                   // active HIGH
+	.reset(1'b0),                          // active HIGH
 	.reset_rom_address(1'b0),
-	.rom_data_in(pal_r ? pal_rom_data : ntsc_rom_data),
-	.write_from_rom(pll_cfg_rom_write_fsm),
-	.write_param(),       // read/write single param ports
+	.rom_data_in(),
+	.write_from_rom(),
+	.write_param(pll_cfg_write_param_fsm), // write single param
 	.busy(pll_cfg_busy_fsm),
-	.data_out(),          // read/write single param ports
+	.data_out(),          // read single param data
 	.pll_areset(pll_cfg_areset),
 	.pll_configupdate(pll_cfg_configupdate),
 	.pll_scanclk(pll_cfg_scanclk),
 	.pll_scanclkena(pll_cfg_scanclkena),
 	.pll_scandata(pll_cfg_scandata),
-	.rom_address_out(pll_cfg_rom_addr),
-	.write_rom_ena(pll_cfg_rom_en)
-	);
-
-wire ntsc_rom_data, pal_rom_data;
-
-pll_ntsc_rom pll_ntsc_rom_inst (
-	.clock(CLK_50M),
-	.rden(pll_cfg_rom_en),
-	.address(pll_cfg_rom_addr),
-	.q(ntsc_rom_data)
-	);
-
-pll_pal_rom pll_pal_rom_inst (
-	.clock(CLK_50M),
-	.rden(pll_cfg_rom_en),
-	.address(pll_cfg_rom_addr),
-	.q(pal_rom_data)
+	.rom_address_out(),
+	.write_rom_ena()
 	);
 
 wire pll_cfg_busy_fsm;
-logic pll_cfg_rom_write_fsm;
+logic [3:0] pll_cfg_cnt_type_fsm;
+logic [2:0] pll_cfg_cnt_param_fsm;
+logic [8:0] pll_cfg_data_in_fsm;
+logic pll_cfg_write_param_fsm;
 logic pll_cfg_reconfig_fsm;
 logic pal_r = '0;
 
 always_ff @(posedge CLK_50M) begin
 	logic pald = '0, pald2 = '0;
-	logic [1:0] state = '0;
+	logic [3:0] state = '0;
 
 	pald <= PAL;
 	pald2 <= pald;
 
-	pll_cfg_rom_write_fsm <= '0;
-	pll_cfg_reconfig_fsm  <= '0;
+	pll_cfg_write_param_fsm <= '0;
+	pll_cfg_reconfig_fsm    <= '0;
 
 	if(!pll_cfg_busy_fsm) begin
 		case(state)
@@ -353,11 +337,70 @@ always_ff @(posedge CLK_50M) begin
 						pal_r <= pald2;
 					end
 				end
-			1 : begin
-					pll_cfg_rom_write_fsm <= 1'b1;
+			1 : begin // N counter High Count
+					pll_cfg_cnt_type_fsm <= 4'b0000;
+					pll_cfg_cnt_param_fsm <= 3'b000;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd3 : 9'd4;
+					pll_cfg_write_param_fsm <= 1'b1;
 					state <= state + 1'd1;
 				end
-			2 : begin
+			2 : begin // N counter Low Count
+					pll_cfg_cnt_type_fsm <= 4'b0000;
+					pll_cfg_cnt_param_fsm <= 3'b001;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd2 : 9'd3;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			3 : begin // M counter High Count
+					pll_cfg_cnt_type_fsm <= 4'b0001;
+					pll_cfg_cnt_param_fsm <= 3'b000;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd27 : 9'd30;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			4 : begin // M counter Low Count
+					pll_cfg_cnt_type_fsm <= 4'b0001;
+					pll_cfg_cnt_param_fsm <= 3'b001;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd26 : 9'd30;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			5 : begin // M counter Mode (odd/even division)
+					pll_cfg_cnt_type_fsm <= 4'b0001;
+					pll_cfg_cnt_param_fsm <= 3'b101;
+					pll_cfg_data_in_fsm <= pal_r ? 1'b1 : 1'b0;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			6 : begin // clk0 counter High Count
+					pll_cfg_cnt_type_fsm <= 4'b0100;
+					pll_cfg_cnt_param_fsm <= 3'b000;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd5 : 9'd4;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			7 : begin // clk0 counter Low Count
+					pll_cfg_cnt_type_fsm <= 4'b0100;
+					pll_cfg_cnt_param_fsm <= 3'b001;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd5 : 9'd4;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			8 : begin // clk1 counter High Count
+					pll_cfg_cnt_type_fsm <= 4'b0101;
+					pll_cfg_cnt_param_fsm <= 3'b000;
+					pll_cfg_data_in_fsm <= pal_r ? 9'd3 : 9'd2;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			9 : begin // clk1 counter Mode (odd/even division)
+					pll_cfg_cnt_type_fsm <= 4'b0101;
+					pll_cfg_cnt_param_fsm <= 3'b101;
+					pll_cfg_data_in_fsm <= pal_r ? 1'b1 : 1'b0;
+					pll_cfg_write_param_fsm <= 1'b1;
+					state <= state + 1'd1;
+				end
+			10 : begin
 					pll_cfg_reconfig_fsm <= 1'b1;
 					state <= '0;
 				end
