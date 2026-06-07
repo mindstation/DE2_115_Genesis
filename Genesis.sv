@@ -512,7 +512,7 @@ system system
 
 	.ENABLE_FM(~dbg_menu | ~status[32]),
 	.ENABLE_PSG(~dbg_menu | ~status[33]),
-	.EN_HIFI_PCM(status[23]),
+	.EN_HIFI_PCM(status[23]), // Option "N"
 	.LADDER(~status[11]),
 	.LPF_MODE(status[15:14]),
 
@@ -557,6 +557,9 @@ system system
 
 	.SERJOYSTICK_OUT_1(SERJOYSTICK_OUT_1),
 	.SERJOYSTICK_OUT_2(SERJOYSTICK_OUT_2),
+
+	.BRAM_DO(),
+	.BRAM_CHANGE(),
 
 	.ROM_ADDR(rom_addr),
 	.ROM_WDATA(rom_wdata),
@@ -758,7 +761,6 @@ sdram sdram
 	.req0(rom_wr),
 	.ack0(sdrom_wrack),
 
-//if addr0 is sequential columns wrtitting use this .addr1({rom_addr[24:23],rom_addr[9:1],rom_addr[22:10]}),
 	.addr1(rom_addr),
 	.din1(rom_wdata),
 	.dout1(sdrom_data),
@@ -817,12 +819,12 @@ always @(posedge clk_sys) begin
 
 	if(ioctl_wr & cart_download) begin
 		if(ioctl_addr == 'h1F0) begin
-			if(ioctl_addr[7:0] == "J") hdr_j <= 1;
+			if(ioctl_data[7:0] == "J") hdr_j <= 1;
 			else if(ioctl_data[7:0] == "U") hdr_u <= 1;
 			else if(ioctl_data[7:0] == "E") hdr_e <= 1;
 			else if(ioctl_data[7:0] >= "0" && ioctl_data[7:0] <= "9") {hdr_e, hdr_u, hdr_j} <= {ioctl_data[3], ioctl_data[2], ioctl_data[0]};
 			else if(ioctl_data[7:0] >= "A" && ioctl_data[7:0] <= "F") {hdr_e, hdr_u, hdr_j} <= {      hrgn[3],       hrgn[2],       hrgn[0]};
-		end		
+		end
 		if(ioctl_addr == 'h1F2) begin
 			if(ioctl_data[7:0] == "J") hdr_j <= 1;
 			else if(ioctl_data[7:0] == "U") hdr_u <= 1;
@@ -873,8 +875,8 @@ always @(posedge clk_sys) begin
 			else if(cart_id == "MK-1228 ") eeprom_quirk <= 1; // Greatest Heavyweights
 			else if(cart_id == "G-5538  ") eeprom_quirk <= 1; // Greatest Heavyweights JP
 			else if(cart_id == "00004076") eeprom_quirk <= 1; // Honoo no Toukyuuji Dodge Danpei
-			else if(cart_id == "T-12046 ") eeprom_quirk <= 1; // Mega Man - The Wily Wars 
-			else if(cart_id == "T-12053 ") eeprom_quirk <= 1; // Rockman Mega World 
+			else if(cart_id == "T-12046 ") eeprom_quirk <= 1; // Mega Man - The Wily Wars
+			else if(cart_id == "T-12053 ") eeprom_quirk <= 1; // Rockman Mega World
 			else if(cart_id == "G-4524  ") eeprom_quirk <= 1; // Ninja Burai Densetsu
 			else if(cart_id == "T-113016") noram_quirk  <= 1; // Puggsy fake ram check
 			else if(cart_id == "T-89016 ") fifo_quirk   <= 1; // Clue
@@ -887,7 +889,7 @@ always @(posedge clk_sys) begin
 			else if(cart_id == "MK-1137-") fmbusy_quirk <= 1; // Hellfire EU
 			else if(cart_id == "T-68???-") schan_quirk  <= 1; // Game no Kanzume Otokuyou
 			else if(cart_id == " GM 0000") sram00_quirk <= 1; // Sonic 1 Remastered
-			
+
 			// Lightgun device and timing offsets
 			if(cart_id == "MK-1533 ") begin						  // Body Count
 				gun_type  <= 0;
