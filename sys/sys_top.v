@@ -1,8 +1,8 @@
 //============================================================================
 //
 //  DE2-115 port MiSTer hardware abstraction module
-//  (c)2020-2021 Alexander Kirichenko
 //  (c)2017-2020 Alexey Melnikov
+//  (c)2020-2021 Alexander Kirichenko
 //
 //  This program is free software; you can redistribute it and/or modify it
 //  under the terms of the GNU General Public License as published by the Free
@@ -149,7 +149,7 @@ assign reset = ~init_reset_n | reset_button_syn;
 /////////////////////////  VGA output  //////////////////////////////////
 
 wire [23:0] vga_data_sl;
-wire        vga_de_sl, vga_vs_sl, vga_hs_sl;
+wire        vga_vs_sl, vga_hs_sl;
 
 scanlines #(0) VGA_scanlines
 (
@@ -160,10 +160,13 @@ scanlines #(0) VGA_scanlines
 	.hs_in(hs_fix),
 	.vs_in(vs_fix),
 	.de_in(de_emu),
+	.ce_in(ce_pix),
 
 	.dout(vga_data_sl),
 	.hs_out(vga_hs_sl),
-	.vs_out(vga_vs_sl)
+	.vs_out(vga_vs_sl),
+	.de_out(),
+	.ce_out()
 );
 
 wire [23:0] vga_o;
@@ -316,7 +319,7 @@ wire  [1:0] audio_mix; // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 wire  [1:0] scanlines;
 wire  [7:0] r_out, g_out, b_out;
 wire        vs_fix, hs_fix, hs_emu, vs_emu, de_emu;
-wire        clk_vid;
+wire        clk_vid, ce_pix;
 wire        led_user;
 wire  [1:0] led_power;
 wire  [1:0] led_disk;
@@ -348,13 +351,14 @@ emu emu
 	.VGA_VS(vs_emu),
 	.VGA_DE(de_emu),    // = ~(VBlank | HBlank)
 	.VGA_F1(),
-	.VGA_SCALER(),      // VGA sginal selector: scaled or not (need some hdmi modules)
+	.VGA_SCALER(),      // VGA sginal selector: scaled or not (used with some hdmi modules)
 
 	.HDMI_WIDTH(12'd0),
 	.HDMI_HEIGHT(12'd0),
 	.HDMI_FREEZE(),    // Video scaler ouput control
 	
 	.CLK_VIDEO(clk_vid),
+	.CE_PIXEL(ce_pix),
 	.VGA_SL(scanlines),
 
 	.LED_USER(led_user),
