@@ -401,6 +401,15 @@ sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 
 wire  [6:0] user_out_1, user_in_1, user_out_2, user_in_2;
 
+// synchronizer: enable/disable system PAL mode
+reg pal_enable_syn = 1'b0;
+reg pal_enable_b;
+always @(posedge CLOCK_50) begin
+	pal_enable_b   <= SW[17];
+	pal_enable_syn <= pal_enable_b;
+end
+wire pal_enable = pal_enable_syn;
+
 emu emu
 (
 	.CLK_50M(CLOCK_50),
@@ -413,7 +422,7 @@ emu emu
 	.JOY_3(joystick_3),  // not used
 	.JOY_4(joystick_4),  // not used
 	.GENPADS_ENABLE(gpads_enable), // if LOW: enable JOY_0 and JOY_1, disable USER I/O;
-	.PAL_ENABLE(SW[17]), // if HIGH: switch on VDP PAL mode and system Europe region
+	.PAL_ENABLE(pal_enable), // if HIGH: switch on VDP PAL mode and system Europe region
 
 	.VGA_R(r_out),
 	.VGA_G(g_out),
