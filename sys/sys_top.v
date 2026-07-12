@@ -81,9 +81,10 @@ module sys_top
 	output        DRAM_RAS_N,
 	output        DRAM_WE_N,
 
-	///////// USER IO ///////////
-	inout [35:0] GPIO, // [13], [11], [9], [5], [3], [1], [7] - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
-						// [23], [25], [27], [31], [33], [35], [29] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+	///////// USER IO, SPDIF ///////////
+	inout [35:0] GPIO, // [13], [11], [9], [5], [3], [1], [7]      - MiSTer serial 1 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+					   // [23], [25], [27], [31], [33], [35], [29] - MiSTer serial 2 {Up/Z, Down/Y, Left/X, Right/Mode, B/A (TL), C/Start (TR), Select (TH)}
+					   // [34] - spdif audio out
 
 	// FLASH interface
 	output		  FL_RST_N,
@@ -107,7 +108,7 @@ assign SD_CMD      = SD_MOSI;
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
 assign LEDG[1] = led_power[1] ? led_power[0] : 1'b0;
-assign LEDG[0] = led_disk[1] ? ~led_disk[0] : 1'b0;
+assign LEDG[0] = led_disk[1]  ?  led_disk[0] : 1'b0;
 assign LEDR[0] = led_user;
 
 wire [31:0] joystick_0,joystick_1,joystick_2,joystick_3,joystick_4;
@@ -148,9 +149,10 @@ assign reset = ~init_reset_n | reset_button_syn;
 
 /////////////////////////  VGA output  //////////////////////////////////
 
+wire        csync_en = 1'b0; // HPS cfg register, MiSTer/sys/sys_top.v:281
+
 wire [23:0] vga_data_sl;
 wire        vga_vs_sl, vga_hs_sl;
-
 scanlines #(0) VGA_scanlines
 (
 	.clk(clk_vid),
@@ -169,23 +171,82 @@ scanlines #(0) VGA_scanlines
 	.ce_out()
 );
 
-wire [23:0] vga_o;
+wire vga_cs_osd; // OSD (On-Screen Display) isn't implemented in DE2_115_Genesis
+				 // osd name is saved for MiSTer source compatibility
+csync csync_vga(
+	.clk(clk_vid),
+
+	.hsync(vga_hs_sl),
+	.vsync(vga_vs_sl),
+
+	.csync(vga_cs_osd)
+);
+
+wire VGA_DISABLE;
+
+wire [23:0] vga_o, vga_o_t;
+wire vga_hs, vga_vs, vga_cs, vga_hs_t, vga_vs_t, vga_cs_t;
 vga_out vga_out
 (
 	.clk(clk_vid),
-
 	.ypbpr_en(1'b0),
 	.hsync(vga_hs_sl),
 	.vsync(vga_vs_sl),
-	.dout(vga_o),
+	.csync(vga_cs_osd),
+	.dout(vga_o_t),
 	.din(vga_data_sl),
-	.hsync_o(VGA_HS),
-	.vsync_o(VGA_VS)
+	.hsync_o(vga_hs_t),
+	.vsync_o(vga_vs_t),
+	.csync_o(vga_cs_t)
 );
 
-assign VGA_R  = vga_o[23:16];
-assign VGA_G  = vga_o[15:8];
-assign VGA_B  = vga_o[7:0];
+`ifndef MISTER_DISABLE_YC
+	reg         pal_en;
+	reg         yc_en;
+	reg         cvbs;
+	reg  [16:0] ColorBurst_Range;
+	reg  [39:0] PhaseInc;
+	wire [23:0] yc_o;
+	wire        yc_hs, yc_vs, yc_cs;
+
+	// HPS command interface
+	// no HPS, no data for CVBS options
+	always @(posedge clk_vid) begin
+		pal_en <= 1'b0;
+		yc_en  <= 1'b0;
+		cvbs   <= 1'b0;
+		ColorBurst_Range <= 17'b0;
+		PhaseInc         <= 40'b0;
+	end
+
+	yc_out yc_out
+	(
+		.clk(clk_vid),
+		.PAL_EN(pal_en),
+		.CVBS(cvbs),
+		.PHASE_INC(PhaseInc),
+		.COLORBURST_RANGE(ColorBurst_Range),
+		.hsync(vga_hs_sl),
+		.vsync(vga_vs_sl),
+		.csync(vga_cs_osd),
+		.dout(yc_o),
+		.din(vga_data_sl),
+		.hsync_o(yc_hs),
+		.vsync_o(yc_vs),
+		.csync_o(yc_cs)
+	);
+
+	assign {vga_o, vga_hs, vga_vs, vga_cs } = ~yc_en ? {vga_o_t, vga_hs_t, vga_vs_t, vga_cs_t } : {yc_o, yc_hs, yc_vs, yc_cs };
+`else
+	assign {vga_o, vga_hs, vga_vs, vga_cs } =  {vga_o_t, vga_hs_t, vga_vs_t, vga_cs_t } ;
+`endif
+
+// No VGA_EN MUX because VGA DAC is soldered to DE2-115
+assign VGA_VS = (VGA_DISABLE ? 1'd1 : ~vga_vs) | csync_en;
+assign VGA_HS = VGA_DISABLE ? 1'd1 : (csync_en ? ~vga_cs : ~vga_hs);
+assign VGA_R  = VGA_DISABLE ? 6'd0 : vga_o[23:16];
+assign VGA_G  = VGA_DISABLE ? 6'd0 : vga_o[15:8] ;
+assign VGA_B  = VGA_DISABLE ? 6'd0 : vga_o[7:0]  ;
 
 // Disable Blank and sync at VGA out.
 assign VGA_BLANK_N = 1'b1; // (VGA_HS && VGA_VS);
@@ -206,14 +267,22 @@ I2C_AV_Config  i2c_con
 .oI2C_SDAT(I2C_SDAT)
 );
 
+wire analog_l, analog_r;
+
+assign GPIO[34] = spdif;
+assign AUDIO_R  = analog_r;
+assign AUDIO_L  = analog_l;
+
 wire clk_audio;
 
 pll_sys pll_sys
 (
 	.inclk0(CLOCK2_50),
-	.c0(AUD_XCK),  // Audio codec MCLK 12.288 MHz (MAX 18.51 MHz)
+	.c0(AUD_XCK),            // Audio codec MCLK 12.288 MHz (MAX 18.51 MHz)
 	.c1(clk_audio)
 );
+
+wire       audio_96k = 1'b0; //0 - 48KHz, 1 - 96KHz
 
 reg [31:0] aflt_rate = 7056000;
 reg [39:0] acx  = 4258969;
@@ -232,6 +301,7 @@ reg [12:0] arc2y = 0;
 wire [4:0]  vol_att = 0; //if (cmd == 'h26) vol_att <= io_din[4:0]. Genesis MiSTer sys_top.v(399).
 wire [15:0] alsa_l = 0, alsa_r = 0;
 
+wire spdif;
 audio_out audio_out
 (
 	.reset(reset),
@@ -239,7 +309,7 @@ audio_out audio_out
 
 	.att(vol_att),
 	.mix(audio_mix),
-	.sample_rate(1'b0), //0 - 48KHz, 1 - 96KHz
+	.sample_rate(audio_96k),
 
 	.flt_rate(aflt_rate),
 	.cx(acx),
@@ -261,13 +331,14 @@ audio_out audio_out
 	.i2s_lrclk(AUD_DACLRCK),
 	.i2s_data(AUD_DACDAT),
 
-	.dac_l(AUDIO_L),
-	.dac_r(AUDIO_R)
+	.dac_l(analog_l),
+	.dac_r(analog_r),
 
+	.spdif(spdif)
 );
 
 ////////////////  User I/O  /////////////////////////
-// enable/disable MiSTer SERJOYSTICKs
+// synchronizer: enable/disable MiSTer SERJOYSTICKs
 reg gpads_enable_syn = 1'b0;
 reg gpads_enable_b;
 always @(posedge CLOCK_50) begin
@@ -320,6 +391,7 @@ wire  [1:0] scanlines;
 wire  [7:0] r_out, g_out, b_out;
 wire        vs_fix, hs_fix, hs_emu, vs_emu, de_emu;
 wire        clk_vid, ce_pix;
+
 wire        led_user;
 wire  [1:0] led_power;
 wire  [1:0] led_disk;
@@ -334,15 +406,14 @@ emu emu
 	.CLK_50M(CLOCK_50),
 	.RESET(reset),
 	
-	.JOY_0(joystick_0),
-	.JOY_1(joystick_1),
-	.JOY_2(joystick_2),
-	.JOY_3(joystick_3),
-	.JOY_4(joystick_4),
-
-	.GENPADS_ENABLE(gpads_enable),
-
-	.PAL_ENABLE(SW[17]),
+	// DE2-115 extra: connected to SW, because no HPS
+	.JOY_0(joystick_0),  // using SW as gamepad 1
+	.JOY_1(joystick_1),  // using SW as gamepad 2
+	.JOY_2(joystick_2),  // not used
+	.JOY_3(joystick_3),  // not used
+	.JOY_4(joystick_4),  // not used
+	.GENPADS_ENABLE(gpads_enable), // if LOW: enable JOY_0 and JOY_1, disable USER I/O;
+	.PAL_ENABLE(SW[17]), // if HIGH: switch on VDP PAL mode and system Europe region
 
 	.VGA_R(r_out),
 	.VGA_G(g_out),
@@ -350,16 +421,20 @@ emu emu
 	.VGA_HS(hs_emu),
 	.VGA_VS(vs_emu),
 	.VGA_DE(de_emu),    // = ~(VBlank | HBlank)
-	.VGA_F1(),
-	.VGA_SCALER(),      // VGA sginal selector: scaled or not (used with some hdmi modules)
+	.VGA_F1(),          // not used, because no HPS
+	.VGA_SCALER(),      // VGA sginal selector: scaled or not (used with some MiSTer hdmi modules)
 
-	.HDMI_WIDTH(12'd0),
-	.HDMI_HEIGHT(12'd0),
-	.HDMI_FREEZE(),    // Video scaler ouput control
-	
+	.VGA_DISABLE(VGA_DISABLE),
+
+	.HDMI_WIDTH(12'd0),  // No HDMI
+	.HDMI_HEIGHT(12'd0), // No HDMI
+	.HDMI_FREEZE(),      // Video scaler ouput control, not used because no HDMI
+
 	.CLK_VIDEO(clk_vid),
 	.CE_PIXEL(ce_pix),
 	.VGA_SL(scanlines),
+	.VIDEO_ARX(),        // Video aspect ratio for HDMI (not used)
+	.VIDEO_ARY(),        // Video aspect ratio for HDMI (not used)
 
 	.LED_USER(led_user),
 	// b[1]: 0 - LED status is system status OR'd with b[0]
@@ -374,7 +449,7 @@ emu emu
 	.AUDIO_S(audio_s),
 	.AUDIO_MIX(audio_mix),
 
-	.ADC_BUS(), // MiSTer ADCin board for a tape loading (not used)
+	.ADC_BUS(), // MiSTer ADCin board for a tape loading (not used for Genesis)
 
 	//SDRAM interface with lower latency
 	.SDRAM_CLK(DRAM_CLK),
@@ -393,7 +468,15 @@ emu emu
 	.SD_MOSI(SD_MOSI),
 	.SD_MISO(SD_MISO),
 	.SD_CS(SD_CS),
-	.SD_CD(), // a sdmicro slot CARD DETECT, here isn't the detect signal on a SD slot
+	.SD_CD(), // a sdmicro slot CARD DETECT, here isn't the detect signal on a SD slot of DE2-115
+
+	// no UART for Genesis
+	.UART_CTS(),
+	.UART_RTS(),
+	.UART_RXD(),
+	.UART_TXD(),
+	.UART_DTR(),
+	.UART_DSR(),
 
 	.USER_OUT_1(user_out_1),
 	.USER_IN_1(user_in_1),
@@ -439,6 +522,48 @@ always @(posedge clk) begin
 	if(s2 != s1) cnt <= 0;
 
 	pol <= pos > neg;
+end
+
+endmodule
+
+/////////////////////////////////////////////////////////////////////
+
+// CSync generation
+// Shifts HSync left by 1 HSync period during VSync
+
+module csync
+(
+	input  clk,
+	input  hsync,
+	input  vsync,
+
+	output csync
+);
+
+assign csync = (csync_vs ^ csync_hs);
+
+reg csync_hs, csync_vs;
+always @(posedge clk) begin
+	reg prev_hs;
+	reg [15:0] h_cnt, line_len, hs_len;
+
+	// Count line/Hsync length
+	h_cnt <= h_cnt + 1'd1;
+
+	prev_hs <= hsync;
+	if (prev_hs ^ hsync) begin
+		h_cnt <= 0;
+		if (hsync) begin
+			line_len <= h_cnt - hs_len;
+			csync_hs <= 0;
+		end
+		else hs_len <= h_cnt;
+	end
+	
+	if (~vsync) csync_hs <= hsync;
+	else if(h_cnt == line_len) csync_hs <= 1;
+	
+	csync_vs <= vsync;
 end
 
 endmodule
