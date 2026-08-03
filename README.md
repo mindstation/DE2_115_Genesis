@@ -29,7 +29,7 @@ ROM size is set by the ROM header. Only exception is Super Street Fighter 2 New 
 
 ## Board keys
 
-* SW[17] - Genesis PAL mode on/off, NTSC when SW[17] is in the down position
+* SW[17] - Genesis PAL-E mode on/off, NTSC-U when SW[17] is in the down position
 * SW[16] - Genesis RESET
 * SW[15] - enable/disable gamepads ports
 * SW[5]  - joystick_0_B, SW[4] - joystick_0_C, SW[3] - joystick_0_Left, SW[2] - joystick_0_Up, SW[1] - joystick_0_Down, SW[0] - joystick_0_Right

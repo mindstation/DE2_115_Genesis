@@ -95,7 +95,7 @@ module ex_hps_io
 
 	always @(posedge clk_sys)
 		//            63                    46                    42                31                       16                                            0
-		status <= {18'b00000000_0_00000_00_0_0,HPS_BUS[37],37'b11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10,{HPS_BUS[36],1'b0},6'b1_0_010_0};
+		status <= {18'b00000000_0_00000_00_0_0,HPS_BUS[37],37'b11_0_00_000_00_0_0_0_0_0_0_00_00_1_0_00_000_0_0_01_0_0_0_0_10,{HPS_BUS[36],~HPS_BUS[36]},6'b1_0_010_0};
 
 	//status[0] is reset (active HIGH)
 	//status[3:1] video_mixer, scale: 3'b100 enable CRT 75%, 3'b011 enable CRT 50%, 3'b010 enable CRT 25%. 3'b001 enable hq2x scale. 3'b000 - disable scandoubler
