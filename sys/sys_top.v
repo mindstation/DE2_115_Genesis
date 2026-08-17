@@ -275,7 +275,7 @@ assign AUDIO_L  = analog_l;
 
 wire clk_audio;
 
-pll_sys pll_sys
+pll_audio pll_audio
 (
 	.inclk0(CLOCK2_50),
 	.c0(AUD_XCK),            // Audio codec MCLK 12.288 MHz (MAX 18.51 MHz)

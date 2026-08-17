@@ -10,7 +10,7 @@ derive_clock_uncertainty
 # Decouple different clock groups (to simplify routing)
 set_clock_groups -exclusive \
 	-group [get_clocks { emu|pll|altpll_component|auto_generated|pll1|clk* }] \
-	-group [get_clocks { pll_sys|altpll_component|auto_generated|pll1|clk[1] }] \
+	-group [get_clocks { pll_audio|altpll_component|auto_generated|pll1|clk[1] }] \
 	-group [get_clocks { CLOCK_50 }] \
 	-group [get_clocks { CLOCK2_50 }]
 
@@ -34,7 +34,7 @@ set_false_path -to [get_ports { AUDIO_R }]
 #    Audio codec
 #---------------------------------------------------
 create_generated_clock -name audio_xck \
--source [get_pins { pll_sys|altpll_component|auto_generated|pll1|clk[0] }] \
+-source [get_pins { pll_audio|altpll_component|auto_generated|pll1|clk[0] }] \
 [get_ports { AUD_XCK }]
 
 set_false_path -to [get_ports { AUD_BCLK AUD_DACLRCK AUD_DACDAT }]

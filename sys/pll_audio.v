@@ -4,7 +4,7 @@
 // MODULE: altpll 
 
 // ============================================================
-// File Name: pll_sys.v
+// File Name: pll_audio.v
 // Megafunction Name(s):
 // 			altpll
 //
@@ -37,7 +37,7 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module pll_sys (
+module pll_audio (
 	inclk0,
 	c0,
 	c1,
@@ -110,7 +110,7 @@ module pll_sys (
 		altpll_component.compensate_clock = "CLK0",
 		altpll_component.inclk0_input_frequency = 20000,
 		altpll_component.intended_device_family = "Cyclone IV E",
-		altpll_component.lpm_hint = "CBX_MODULE_PREFIX=pll_sys",
+		altpll_component.lpm_hint = "CBX_MODULE_PREFIX=pll_audio",
 		altpll_component.lpm_type = "altpll",
 		altpll_component.operation_mode = "NORMAL",
 		altpll_component.pll_type = "AUTO",
@@ -236,7 +236,7 @@ endmodule
 // Retrieval info: PRIVATE: PLL_PFDENA_CHECK STRING "0"
 // Retrieval info: PRIVATE: PLL_TARGET_HARCOPY_CHECK NUMERIC "0"
 // Retrieval info: PRIVATE: PRIMARY_CLK_COMBO STRING "inclk0"
-// Retrieval info: PRIVATE: RECONFIG_FILE STRING "pll_sys.mif"
+// Retrieval info: PRIVATE: RECONFIG_FILE STRING "pll_audio.mif"
 // Retrieval info: PRIVATE: SACN_INPUTS_CHECK STRING "0"
 // Retrieval info: PRIVATE: SCAN_FEATURE_ENABLED STRING "1"
 // Retrieval info: PRIVATE: SELF_RESET_LOCK_LOSS STRING "0"
@@ -327,12 +327,12 @@ endmodule
 // Retrieval info: CONNECT: c0 0 0 0 0 @clk 0 0 1 0
 // Retrieval info: CONNECT: c1 0 0 0 0 @clk 0 0 1 1
 // Retrieval info: CONNECT: locked 0 0 0 0 @locked 0 0 0 0
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys.ppf TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys.inc FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys.cmp FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys.bsf FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys_inst.v FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_sys_bb.v FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio.ppf TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio.inc FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio.cmp FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio.bsf FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio_inst.v FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL pll_audio_bb.v FALSE
 // Retrieval info: LIB_FILE: altera_mf
 // Retrieval info: CBX_MODULE_PREFIX: ON
